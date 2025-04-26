@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import logoFC from './assets/logo_fc.png'
 import furnaceImg from './assets/furnace.png'
 import './App.css'
@@ -67,9 +67,31 @@ function App() {
   const [manualInflowControl, setManualInflowControl] = useState(false)
   const [lastAction, setLastAction] = useState(null)
 
+  // Move game-related states up here, before they're used in effects
+  const [gameActive, setGameActive] = useState(false)
+  const [gameCompleted, setGameCompleted] = useState(false)
+  const [timeRemaining, setTimeRemaining] = useState(300) // Changed from 600 to 300 (5 minutes in seconds)
+  const [costSavings, setCostSavings] = useState(0)
+  const [cumulativeO2, setCumulativeO2] = useState(0)
+  const [cumulativeCO, setCumulativeCO] = useState(0)
+  const [cumulativeCO2, setCumulativeCO2] = useState(0)
+  const [showGameResults, setShowGameResults] = useState(false)
+  
+  // Add new state variables to store final score snapshots
+  const [finalTemp, setFinalTemp] = useState(0)
+  const [finalO2, setFinalO2] = useState(0)
+  const [finalCostSavings, setFinalCostSavings] = useState(0)
+  const [finalCO, setFinalCO] = useState(0)
+  const [finalCO2, setFinalCO2] = useState(0)
+  const [finalTimeUsed, setFinalTimeUsed] = useState(0)
+
   // The optimal excess O2 range
   const optimalO2Min = 1.5
   const optimalO2Max = 2.5
+
+  // New game-related constants
+  const optimalFuelUsage = 8000 // baseline cost in $ per hour at optimal conditions
+  const gasPricePerUnit = 0.5 // $ per unit of fuel
 
   // When air/fuel ratio changes, update the corresponding flows
   useEffect(() => {
@@ -106,58 +128,82 @@ function App() {
     return Math.max(0, parseFloat((excessO2 + noise).toFixed(1)));
   }, [])
 
+  // Refs to hold the latest values for simulation and timer
+  const currentTempRef   = useRef(currentTemp)
+  const inflowTempRef    = useRef(inflowTemp)
+  const inflowRateRef    = useRef(inflowRate)
+  const excessO2Ref      = useRef(excessO2)
+  const costSavingsRef   = useRef(costSavings)
+  const cumulativeCORef  = useRef(cumulativeCO)
+  const cumulativeCO2Ref = useRef(cumulativeCO2)
+
+  // Sync refs when state updates
+  useEffect(() => { currentTempRef.current   = currentTemp },   [currentTemp])
+  useEffect(() => { inflowTempRef.current    = inflowTemp },    [inflowTemp])
+  useEffect(() => { inflowRateRef.current    = inflowRate },    [inflowRate])
+  useEffect(() => { excessO2Ref.current      = excessO2 },      [excessO2])
+  useEffect(() => { costSavingsRef.current   = costSavings },   [costSavings])
+  useEffect(() => { cumulativeCORef.current  = cumulativeCO },  [cumulativeCO])
+  useEffect(() => { cumulativeCO2Ref.current = cumulativeCO2 }, [cumulativeCO2])
+
   // Update the simulation every 333ms (3x faster than before)
   useEffect(() => {
-    const simulationInterval = setInterval(() => {
-      // Only vary inflow conditions if NOT in manual control mode
+    if (!gameActive) return
+
+    const tick = 333 / 1000 // seconds per frame
+    const simInterval = setInterval(() => {
+      // 1) randomize inflow if in auto mode
       if (!manualInflowControl) {
-        const newInflowTemp = inflowTemp + (Math.random() - 0.5) * 10
-        const newInflowRate = inflowRate + (Math.random() - 0.5) * 20
-        
-        // Constrain inflow temperature to 100-200°C
-        setInflowTemp(Math.max(100, Math.min(200, newInflowTemp)))
-        setInflowRate(Math.max(50, Math.min(200, newInflowRate))) // Keep within reasonable limits
+        const newTemp  = inflowTempRef.current + (Math.random() - 0.5) * 10
+        const newRate  = inflowRateRef.current + (Math.random() - 0.5) * 20
+        setInflowTemp(Math.max(100, Math.min(200, newTemp)))
+        setInflowRate(Math.max(50, Math.min(200, newRate)))
       }
-      
-      // Calculate new excess O2 using the heat-balance approach
-      const newO2 = calculateExcessO2(airFuelRatio, fuelFlow, currentTemp)
-      setExcessO2(newO2)
-      
-      // Calculate new temperature using heat transfer model
-      const newTemp = calculateTemperature(
+
+      // 2) compute O₂ and temperature
+      const o2    = calculateExcessO2(airFuelRatio, fuelFlow, currentTempRef.current)
+      const temp  = calculateTemperature(
         fuelFlow,
         airFlow,
-        currentTemp,
-        inflowTemp,
-        inflowRate
+        currentTempRef.current,
+        inflowTempRef.current,
+        inflowRateRef.current
       )
-      setCurrentTemp(Math.round(newTemp))
+
+      // 3) accumulate cost & emissions (scale by tick)
+      const deltaCost = calculateCostImpact(o2, fuelFlow) * tick
+      const deltaCO   = calculateCO(o2) * tick
+      const deltaCO2  = calculateCO2(fuelFlow, airFuelRatio) * tick
+      setCostSavings(prev => prev + deltaCost)
+      setCumulativeCO(prev => prev + deltaCO)
+      setCumulativeCO2(prev => prev + deltaCO2)
+
+      // 4) update state & history
+      setExcessO2(o2)
+      setCurrentTemp(Math.round(temp))
+      setIsOptimal(o2 >= optimalO2Min && o2 <= optimalO2Max)
+      setFlowRateOptimal(Math.abs(inflowRateRef.current - targetFlowRate) < 15)
+      setTempHistory(h => [...h.slice(1), Math.round(temp)])
+      setO2History(h => [...h.slice(1), o2])
       
-      // Check if O2 level is in optimal range
-      setIsOptimal(newO2 >= optimalO2Min && newO2 <= optimalO2Max)
-      
-      // Check if flow rate is in optimal range
-      setFlowRateOptimal(Math.abs(inflowRate - targetFlowRate) < 15)
-      
-      // Update history (keep last 30 readings)
-      setTempHistory(prev => [...prev.slice(1), Math.round(newTemp)])
-      setO2History(prev => [...prev.slice(1), newO2])
-      
-    }, 333) // Changed from 1000ms to 333ms for 3x speed
-    
-    return () => clearInterval(simulationInterval)
-  }, [
-    airFuelRatio, 
-    targetTemp, 
-    currentTemp, 
-    inflowTemp, 
-    inflowRate, 
-    calculateExcessO2,
-    airFlow,
-    fuelFlow,
-    manualInflowControl,
-    targetFlowRate
-  ])
+      // 5) check if target reached during game
+      if (gameActive && !gameCompleted && Math.abs(temp - targetTemp) < 5) {
+        setGameActive(false)
+        setGameCompleted(true)
+        // Take snapshots using refs for accuracy
+        setFinalTemp(temp)
+        setFinalO2(o2)
+        setFinalCostSavings(costSavingsRef.current)
+        setFinalCO(cumulativeCORef.current)
+        setFinalCO2(cumulativeCO2Ref.current)
+        setFinalTimeUsed(300 - timeRemaining) // Time used until completion
+        setShowGameResults(true)
+        setLastAction(`Success! Target temperature reached with ${formatTime(timeRemaining)} remaining.`)
+      }
+    }, 333)
+
+    return () => clearInterval(simInterval)
+  }, [gameActive, gameCompleted, manualInflowControl, airFuelRatio, fuelFlow, airFlow, targetFlowRate, targetTemp, timeRemaining])
 
   // Get color class for temperature display based on how close to target
   const getTempColorClass = () => {
@@ -202,28 +248,6 @@ function App() {
     setLastAction(`Changed fuel flow to ${newFuelFlow} units`);
   }
 
-  // Game related states and functions
-  const [gameActive, setGameActive] = useState(false)
-  const [gameCompleted, setGameCompleted] = useState(false)
-  const [timeRemaining, setTimeRemaining] = useState(300) // Changed from 600 to 300 (5 minutes in seconds)
-  const [costSavings, setCostSavings] = useState(0)
-  const [cumulativeO2, setCumulativeO2] = useState(0)
-  const [cumulativeCO, setCumulativeCO] = useState(0)
-  const [cumulativeCO2, setCumulativeCO2] = useState(0)
-  const [showGameResults, setShowGameResults] = useState(false)
-  
-  // New game-related constants
-  const optimalFuelUsage = 8000 // baseline cost in $ per hour at optimal conditions
-  const gasPricePerUnit = 0.5 // $ per unit of fuel
-  
-  // Add new state variables to store final score snapshots
-  const [finalTemp, setFinalTemp] = useState(0)
-  const [finalO2, setFinalO2] = useState(0)
-  const [finalCostSavings, setFinalCostSavings] = useState(0)
-  const [finalCO, setFinalCO] = useState(0)
-  const [finalCO2, setFinalCO2] = useState(0)
-  const [finalTimeUsed, setFinalTimeUsed] = useState(0)
-
   // Function to start the game
   const startGame = () => {
     setGameActive(true)
@@ -252,11 +276,11 @@ function App() {
       // Exponential increase in CO as O2 approaches zero
       return Math.min(1000, 10 * Math.exp(2 * (optimalO2Min - excessO2)))
     } else if (excessO2 >= optimalO2Min && excessO2 <= optimalO2Max) {
-      // In optimal range - minimal constant CO emission (no incremental increase)
-      return 1; // Minimal baseline CO when in optimal range
+      // In optimal range - minimal constant CO emission with NO incremental increase
+      return 0; // Zero CO emissions in optimal range
     } else {
       // Above optimal range - slight increase due to inefficiency
-      return 3 + (excessO2 - optimalO2Max); // Small baseline plus slight increase
+      return 1 + (excessO2 - optimalO2Max); // Small baseline plus slight increase
     }
   }, [optimalO2Min, optimalO2Max])
   
@@ -321,7 +345,7 @@ function App() {
     }, 1000)
     
     return () => clearInterval(gameTimer)
-  }, [gameActive, currentTemp, excessO2, costSavings, cumulativeCO, cumulativeCO2])
+  }, [gameActive]) // Only depend on gameActive state to avoid resetting the timer
 
   // Modify the temperature target check to take snapshots when target is reached
   useEffect(() => {
@@ -591,7 +615,26 @@ function App() {
                 </button>
                 <button
                   className="bg-gray-500 text-gray-700 px-4 py-2 rounded hover:bg-gray-600"
-                  onClick={() => setShowGameResults(false)}
+                  onClick={() => {
+                    setShowGameResults(false)
+                    setGameCompleted(false)
+                    // Reset all game state
+                    setTimeRemaining(300)
+                    setCostSavings(0)
+                    setCumulativeO2(0)
+                    setCumulativeCO(0)
+                    setCumulativeCO2(0)
+                    
+                    // Reset to starting conditions
+                    setCurrentTemp(400)
+                    setTargetTemp(450)
+                    setAirFuelRatio(14.7)
+                    setFuelFlow(10)
+                    setAirFlow(147)
+                    setTempHistory([...Array(30)].map(() => 400))
+                    setO2History([...Array(30)].map(() => 2.0))
+                    setLastAction(null)
+                  }}
                 >
                   Close
                 </button>
@@ -896,7 +939,7 @@ function App() {
             
             <div className="mb-6">
               <div className="flex justify-between items-center mb-2">
-                <label className="font-medium text-gray-700">
+                <label className="font-medium text-gray-700 mb-2">
                   Inflow Feed Control
                 </label>
                 <label className="inline-flex items-center cursor-pointer">
