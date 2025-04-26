@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* Animation for smoke particles rising */
+@keyframes rise {
+  0% { 
+    transform: translateY(0) scale(1); 
+    opacity: 0.7; 
+  }
+  100% { 
+    transform: translateY(-100px) scale(2); 
+    opacity: 0; 
+  }
+}
+
+/* Make Tailwind animate-pulse more natural for flames */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scaleY(1) scaleX(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scaleY(1.08) scaleX(0.92);
+  }
+}
+
+/* Custom styles for elements not easily handled by Tailwind */
+input[type="range"] {
+  @apply appearance-none bg-transparent;
+  height: 20px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  @apply appearance-none h-6 w-6 rounded-full bg-white border-2 border-gray-400 shadow cursor-pointer;
+  margin-top: -10px;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  @apply bg-transparent h-2 rounded-lg;
+}
+
+/* Default Tailwind styles continue below */
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
