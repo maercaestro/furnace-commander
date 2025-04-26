@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import logoFC from './assets/logo_fc.png'
 import furnaceImg from './assets/furnace.png'
 import './App.css'
+import { supabase } from './supabaseClient'
 
 // Heat transfer based temperature calculation
 function calculateTemperature(fuelFlow, airFlow, currentTemp, inflowTemp, inflowRate) {
@@ -86,6 +88,16 @@ function App() {
   const [finalCO, setFinalCO] = useState(0)
   const [finalCO2, setFinalCO2] = useState(0)
   const [finalTimeUsed, setFinalTimeUsed] = useState(0)
+
+  const [playerName, setPlayerName] = useState('')
+  const [showNameInput, setShowNameInput] = useState(false)
+  const [leaderboard, setLeaderboard] = useState([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false)
+  const [leaderboardError, setLeaderboardError] = useState(null)
+
+  // Add a new state for feedback
+  const [playerFeedback, setPlayerFeedback] = useState('');
 
   // The optimal excess O2 range
   const optimalO2Min = 1.5
@@ -250,6 +262,13 @@ function App() {
     setLastAction(`Changed fuel flow to ${newFuelFlow} units`);
   }
 
+  useEffect(() => {
+    if (showGameResults) {
+      fetchLeaderboard();
+    }
+  }, [showGameResults]);
+
+
   // Function to start the game
   const startGame = () => {
     setGameActive(true)
@@ -371,9 +390,94 @@ function App() {
       setLastAction(`Success! Target temperature reached with ${formatTime(timeRemaining)} remaining.`)
     }
   }, [gameActive, gameCompleted, currentTemp, targetTemp, timeRemaining, excessO2, costSavings, cumulativeCO, cumulativeCO2])
+  
+  const fetchLeaderboard = async () => {
+    try {
+      setLeaderboardLoading(true)
+      setLeaderboardError(null)
+      
+      const { data, error } = await supabase
+        .from('leaderboard')
+        .select('*')
+        .order('score', { ascending: false })
+        .limit(10)
+      
+      if (error) {
+        throw error
+      }
+      
+      setLeaderboard(data || [])
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error)
+      setLeaderboardError('Failed to load leaderboard data')
+    } finally {
+      setLeaderboardLoading(false)
+    }
+  }
+  
+  // Save player score to database
+  const saveScore = async () => {
+    if (!playerName.trim()) {
+      alert('Please enter your name');
+      return;
+    }
+    
+    try {
+      setIsSubmitting(true);
+      
+      // Calculate score for database
+      const score = calculateNumericScore();
+      
+      const { error } = await supabase
+        .from('leaderboard')
+        .insert([
+          {
+            player_name: playerName,
+            score: score,
+            grade: calculateLetterGrade(score),
+            final_temp: finalTemp,
+            target_temp: targetTemp,
+            cost_savings: finalCostSavings,
+            co_emissions: finalCO,
+            time_used: finalTimeUsed,
+            feedback: playerFeedback.trim() || null // Add the feedback field
+          }
+        ]);
+        
+      if (error) {
+        throw error;
+      }
+      
+      // After saving, refresh the leaderboard
+      setShowNameInput(false);
+      setPlayerFeedback(''); // Reset feedback
+      fetchLeaderboard();
+    } catch (error) {
+      console.error('Error saving score:', error);
+      alert('Failed to save your score. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const stopGame = () => {
+    setGameActive(false);
+    setGameCompleted(true);
+  
+    // Take snapshots of current values
+    setFinalTemp(currentTemp);
+    setFinalO2(excessO2);
+    setFinalCostSavings(costSavings);
+    setFinalCO(cumulativeCO);
+    setFinalCO2(cumulativeCO2);
+    setFinalTimeUsed(300 - timeRemaining); // Time used until stopping
+  
+    setShowGameResults(true);
+    setLastAction("Game stopped by user. Scores recorded.");
+  };
 
   // Update the calculateGrade function to use final snapshots
-  const calculateGrade = () => {
+  const calculateNumericScore = () => {
     // Base score out of 100
     let score = 0;
     
@@ -419,13 +523,24 @@ function App() {
       score += 0;  // Poor emissions control
     }
     
-    // Convert score to letter grade
-    if (score >= 90) return "A";
-    if (score >= 80) return "B";
-    if (score >= 70) return "C";
-    if (score >= 60) return "D";
-    return "F";
+    return score
   }
+
+
+// Convert numeric score to letter grade
+  const calculateLetterGrade = (score) => {
+    if (score >= 90) return 'A'
+    if (score >= 80) return 'B'
+    if (score >= 70) return 'C'
+    if (score >= 60) return 'D'
+    return 'F'
+  }
+
+  const calculateGrade = () => {
+    const score = calculateNumericScore()
+    return calculateLetterGrade(score)
+  }
+
 
   // Helper function to format time
   const formatTime = (seconds) => {
@@ -502,14 +617,29 @@ function App() {
           {/* Game Controls */}
           <div className="flex items-center gap-4">
             {!gameActive && !gameCompleted && (
-              <button 
-                onClick={handleStartClick}
-                className="bg-green-600 text-gray-700 px-4 py-2 rounded hover:bg-green-700"
+              <>
+                <button 
+                  onClick={handleStartClick}
+                  className="bg-green-600 text-gray-700 px-4 py-2 rounded hover:bg-green-700"
+                >
+                  Start Challenge
+                </button>
+                <Link 
+                  to="/leaderboard"
+                  className="bg-gray-50 text-gray-700 px-4 py-2 rounded hover:bg-gray-700"
+                >
+                  View Leaderboard
+                </Link>
+              </>
+            )}
+            {gameActive && (
+              <button
+                onClick={stopGame}
+                className="bg-red-600 text-gray-700 px-4 py-2 rounded hover:bg-red-700"
               >
-                Start Challenge
+                Stop Game
               </button>
             )}
-            
             {(gameActive || gameCompleted) && (
               <div className="flex flex-col items-end">
                 <div className={`text-xl font-bold ${timeRemaining < 60 ? 'text-red-600' : 'text-gray-800'}`}>
@@ -574,7 +704,7 @@ function App() {
               {/* Add grade display at the top */}
               <div className="flex items-center justify-between mb-4">
                 <div className="text-lg font-semibold">
-                  {gameCompleted && Math.abs(currentTemp - targetTemp) < 10 
+                  {gameCompleted && Math.abs(finalTemp - targetTemp) < 10 
                     ? '✅ Target Temperature Reached!' 
                     : '❌ Failed to Reach Target Temperature'}
                 </div>
@@ -594,79 +724,112 @@ function App() {
               
               <div className="mb-6">
                 <div className="text-gray-600">
-                  Final temperature: {currentTemp}°C (Target: {targetTemp}°C)
+                  Final temperature: {finalTemp}°C (Target: {targetTemp}°C)
                 </div>
                 <div className="text-gray-600">
-                  Time used: {formatTime(300 - timeRemaining)} {timeRemaining > 0 && `(${formatTime(timeRemaining)} remaining)`}
+                  Time used: {formatTime(finalTimeUsed)} {timeRemaining > 0 && `(${formatTime(timeRemaining)} remaining)`}
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                  <div className="font-medium">Financial Impact:</div>
-                  <div className={`text-xl font-bold ${costSavings > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {costSavings > 0 ? 'Saved ' : 'Lost '}{Math.abs(costSavings).toFixed(2)} $
+              
+              {/* Name input and feedback for leaderboard */}
+              {showNameInput ? (
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <h3 className="font-semibold text-lg mb-2">Add Your Score to the Leaderboard</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded"
+                        placeholder="Enter your name"
+                        value={playerName}
+                        onChange={(e) => setPlayerName(e.target.value)}
+                        maxLength={20}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Share your feedback (optional):
+                      </label>
+                      <textarea
+                        className="w-full px-3 py-2 border border-gray-300 rounded"
+                        placeholder="What did you think about the game? Any suggestions?"
+                        value={playerFeedback}
+                        onChange={(e) => setPlayerFeedback(e.target.value)}
+                        rows={3}
+                        maxLength={200}
+                        disabled={isSubmitting}
+                      ></textarea>
+                    </div>
+                    
+                    <div className="flex justify-end">
+                      <button
+                        className="bg-blue-600 text-gray-700 px-4 py-2 rounded hover:bg-blue-700 disabled:bg-blue-300"
+                        onClick={saveScore}
+                        disabled={!playerName.trim() || isSubmitting}
+                      >
+                        {isSubmitting ? 'Saving...' : 'Submit'}
+                      </button>
+                    </div>
                   </div>
                 </div>
+              ) : (
+                <div className="mb-6">
+                  <button
+                    className="w-full bg-blue-600 text-gray-700 px-4 py-2 rounded hover:bg-blue-700"
+                    onClick={() => setShowNameInput(true)}
+                  >
+                    Add to Leaderboard
+                  </button>
+                </div>
+              )}
+              
+              {/* Leaderboard display */}
+              <div className="mb-6">
+                <h3 className="font-semibold text-lg mb-2">Top 10 Leaderboard</h3>
                 
-                <div>
-                  <div className="font-medium">Environmental Impact:</div>
-                  <div className={`text-lg ${cumulativeCO < 300 ? 'text-green-600' : 'text-red-600'}`}>
-                    CO: {cumulativeCO.toFixed(1)} kg
+                {leaderboardLoading ? (
+                  <div className="text-center p-4">Loading scores...</div>
+                ) : leaderboardError ? (
+                  <div className="text-center p-4 text-red-500">{leaderboardError}</div>
+                ) : leaderboard.length > 0 ? (
+                  <div className="border rounded overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          <th className="py-2 px-4 text-left">#</th>
+                          <th className="py-2 px-4 text-left">Player</th>
+                          <th className="py-2 px-4 text-right">Score</th>
+                          <th className="py-2 px-4 text-center">Grade</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {leaderboard.map((entry, index) => (
+                          <tr key={entry.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-gray-100`}>
+                            <td className="py-2 px-4 text-left">{index + 1}</td>
+                            <td className="py-2 px-4 text-left font-medium">{entry.player_name}</td>
+                            <td className="py-2 px-4 text-right">{entry.score}</td>
+                            <td className="py-2 px-4 text-center">
+                              <span className={`font-bold ${
+                                entry.grade === 'A' ? 'text-green-600' :
+                                entry.grade === 'B' ? 'text-green-500' :
+                                entry.grade === 'C' ? 'text-yellow-500' :
+                                entry.grade === 'D' ? 'text-orange-500' :
+                                'text-red-600'
+                              }`}>
+                                {entry.grade}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="text-gray-700">
-                    CO₂: {cumulativeCO2.toFixed(1)} kg
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mb-4">
-                <div className="font-medium mb-1">Performance Analysis:</div>
-                <div className="text-sm">
-                  {costSavings > 0 && cumulativeCO < 500 
-                    ? "Excellent job! You maintained efficient combustion while reaching the target temperature."
-                    : costSavings > 0 
-                      ? "Good financial savings, but CO emissions were high. Try improving your air/fuel ratio control."
-                      : cumulativeCO < 600 
-                        ? "Low emissions, but not cost-effective. You might have used too much excess air."
-                        : "Poor performance in both cost and emissions. Review your combustion control strategy."
-                  }
-                </div>
-              </div>
-              
-              {/* Grade breakdown */}
-              <div className="p-4 bg-gray-50 rounded-lg mb-4">
-                <div className="font-medium mb-2">Grade Breakdown:</div>
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  <div>
-                    <div className="font-medium">Temperature</div>
-                    <div className={Math.abs(currentTemp - targetTemp) < 10 ? "text-green-600" : "text-red-600"}>
-                      {Math.abs(currentTemp - targetTemp) < 10 ? "Perfect" : 
-                       Math.abs(currentTemp - targetTemp) < 20 ? "Very Good" : 
-                       Math.abs(currentTemp - targetTemp) < 25 ? "Good" : 
-                       Math.abs(currentTemp - targetTemp) < 30 ? "Fair" : "Poor"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-medium">Financial</div>
-                    <div className={costSavings > 0 ? "text-green-600" : "text-red-600"}>
-                      {costSavings > 10 ? "Excellent" : 
-                       costSavings > 5 ? "Very Good" : 
-                       costSavings > 2 ? "Good" : 
-                       costSavings > 0 ? "Moderate" : 
-                       costSavings > -1 ? "Slight" : "Loss"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-medium">Emissions</div>
-                    <div className={cumulativeCO < 300 ? "text-green-600" : "text-red-600"}>
-                      {cumulativeCO < 600 ? "Excellent" : 
-                       cumulativeCO < 700 ? "Very Good" : 
-                       cumulativeCO < 800 ? "Good" : 
-                       cumulativeCO < 1000 ? "Fair" : "Poor"}
-                    </div>
-                  </div>
-                </div>
+                ) : (
+                  <div className="text-center p-4 text-gray-500">No scores yet. Be the first!</div>
+                )}
               </div>
               
               <div className="flex justify-between">
@@ -681,6 +844,7 @@ function App() {
                   onClick={() => {
                     setShowGameResults(false)
                     setGameCompleted(false)
+                    setShowNameInput(false)
                     // Reset all game state
                     setTimeRemaining(300)
                     setCostSavings(0)
@@ -697,6 +861,9 @@ function App() {
                     setTempHistory([...Array(30)].map(() => 400))
                     setO2History([...Array(30)].map(() => 2.0))
                     setLastAction(null)
+                    
+                    // Reset player name
+                    setPlayerName('')
                   }}
                 >
                   Close
@@ -1036,8 +1203,8 @@ function App() {
                       onChange={(e) => setInflowTemp(Number(e.target.value))}
                     />
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>Cold (15°C)</span>
-                      <span>Hot (40°C)</span>
+                      <span>Low Temp</span>
+                      <span>High Temp</span>
                     </div>
                   </div>
                   
