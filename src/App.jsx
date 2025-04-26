@@ -317,7 +317,7 @@ function App() {
       costMultiplier = 1 + 0.2 * (excessO2 - optimalO2Max) / optimalO2Max
     } else {
       // In optimal range - generate savings
-      costMultiplier = 0.7
+      costMultiplier = 0.76
     }
     
     // Return cost impact (negative = savings, positive = additional cost)
