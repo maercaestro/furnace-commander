@@ -66,6 +66,8 @@ function App() {
   const [o2History, setO2History] = useState([...Array(30)].map(() => 2.0))
   const [manualInflowControl, setManualInflowControl] = useState(false)
   const [lastAction, setLastAction] = useState(null)
+  // Add the missing state for instructions popup
+  const [showInstructions, setShowInstructions] = useState(false)
 
   // Move game-related states up here, before they're used in effects
   const [gameActive, setGameActive] = useState(false)
@@ -268,7 +270,12 @@ function App() {
     setO2History([...Array(30)].map(() => 2.0))
     setLastAction("Game started! Reach the target temperature within 5 minutes while minimizing costs.")
   }
-  
+
+  // Show instructions when clicking Start Challenge button
+  const handleStartClick = () => {
+    setShowInstructions(true)
+  }
+
   // Calculate CO emissions based on excess O2
   const calculateCO = useCallback((excessO2) => {
     // CO increases exponentially as O2 decreases below optimal
@@ -310,7 +317,7 @@ function App() {
       costMultiplier = 1 + 0.2 * (excessO2 - optimalO2Max) / optimalO2Max
     } else {
       // In optimal range - generate savings
-      costMultiplier = 0.8
+      costMultiplier = 0.7
     }
     
     // Return cost impact (negative = savings, positive = additional cost)
@@ -372,11 +379,11 @@ function App() {
     
     // Temperature accuracy (up to 40 points)
     const tempAccuracy = Math.abs(finalTemp - targetTemp);
-    if (tempAccuracy < 5) {
+    if (tempAccuracy < 10) {
       score += 40; // Perfect temperature control
-    } else if (tempAccuracy < 10) {
-      score += 35; // Very good temperature control
     } else if (tempAccuracy < 20) {
+      score += 35; // Very good temperature control
+    } else if (tempAccuracy < 25) {
       score += 25; // Good temperature control
     } else if (tempAccuracy < 30) {
       score += 15; // Fair temperature control
@@ -430,6 +437,62 @@ function App() {
   return (
     <div className="min-h-screen w-full bg-[#f4e3c3]">
       <div className="max-w-6xl mx-auto p-8">
+        {/* Instructions Modal */}
+        {showInstructions && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-xl w-full">
+              <h2 className="text-2xl font-bold mb-4 text-gray-800">Furnace Challenge Instructions</h2>
+              
+              <div className="space-y-4 mb-6">
+                <div>
+                  <h3 className="font-bold text-lg text-gray-700 mb-2">Objectives:</h3>
+                  <ul className="list-disc pl-5 space-y-2 text-gray-600">
+                    <li>Bring the furnace temperature to the target <span className="font-medium">{targetTemp}°C</span> within 5 minutes</li>
+                    <li>Maintain excess O₂ levels between <span className="font-medium">1.5-2.5%</span> for optimal combustion</li>
+                    <li>Keep cost impact positive by maintaining optimal excess O₂</li>
+                    <li>Minimize CO emissions by avoiding incomplete combustion</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h3 className="font-bold text-lg text-gray-700 mb-2">Tips:</h3>
+                  <ul className="list-disc pl-5 space-y-2 text-gray-600">
+                    <li>If temperature is rising too slowly, increase fuel flow</li>
+                    <li>When adjusting fuel flow, make sure to adjust the air/fuel ratio to maintain optimal excess O₂</li>
+                    <li>Watch for smoke - it indicates poor combustion efficiency</li>
+                    <li>The optimal air/fuel ratio is theoretically at 14.7, but may need adjustment based on conditions</li>
+                    <li>CO emissions increase rapidly when excess O₂ is too low</li>
+                    <li>High excess O₂ wastes energy and reduces efficiency</li>
+                  </ul>
+                </div>
+                
+                <div className="p-3 bg-blue-50 text-blue-700 rounded-lg">
+                  <p className="font-medium">Remember:</p>
+                  <p className="text-sm">The goal is to balance temperature control, fuel efficiency, and emissions. Your performance in all three areas will determine your final grade.</p>
+                </div>
+              </div>
+              
+              <div className="flex justify-between">
+                <button
+                  className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
+                  onClick={() => setShowInstructions(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="bg-green-600 text-gray-600 px-4 py-2 rounded hover:bg-green-700"
+                  onClick={() => {
+                    setShowInstructions(false)
+                    startGame()
+                  }}
+                >
+                  Start Challenge
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center">
             <img src={logoFC} className="h-30 mr-4" alt="Furnace Commander logo" />
@@ -440,7 +503,7 @@ function App() {
           <div className="flex items-center gap-4">
             {!gameActive && !gameCompleted && (
               <button 
-                onClick={startGame}
+                onClick={handleStartClick}
                 className="bg-green-600 text-gray-700 px-4 py-2 rounded hover:bg-green-700"
               >
                 Start Challenge
@@ -560,11 +623,11 @@ function App() {
               <div className="mb-4">
                 <div className="font-medium mb-1">Performance Analysis:</div>
                 <div className="text-sm">
-                  {costSavings > 0 && cumulativeCO < 300 
+                  {costSavings > 0 && cumulativeCO < 500 
                     ? "Excellent job! You maintained efficient combustion while reaching the target temperature."
                     : costSavings > 0 
                       ? "Good financial savings, but CO emissions were high. Try improving your air/fuel ratio control."
-                      : cumulativeCO < 300 
+                      : cumulativeCO < 600 
                         ? "Low emissions, but not cost-effective. You might have used too much excess air."
                         : "Poor performance in both cost and emissions. Review your combustion control strategy."
                   }
@@ -578,29 +641,29 @@ function App() {
                   <div>
                     <div className="font-medium">Temperature</div>
                     <div className={Math.abs(currentTemp - targetTemp) < 10 ? "text-green-600" : "text-red-600"}>
-                      {Math.abs(currentTemp - targetTemp) < 5 ? "Perfect" : 
-                       Math.abs(currentTemp - targetTemp) < 10 ? "Very Good" : 
-                       Math.abs(currentTemp - targetTemp) < 20 ? "Good" : 
+                      {Math.abs(currentTemp - targetTemp) < 10 ? "Perfect" : 
+                       Math.abs(currentTemp - targetTemp) < 20 ? "Very Good" : 
+                       Math.abs(currentTemp - targetTemp) < 25 ? "Good" : 
                        Math.abs(currentTemp - targetTemp) < 30 ? "Fair" : "Poor"}
                     </div>
                   </div>
                   <div>
                     <div className="font-medium">Financial</div>
                     <div className={costSavings > 0 ? "text-green-600" : "text-red-600"}>
-                      {costSavings > 20 ? "Excellent" : 
-                       costSavings > 15 ? "Very Good" : 
-                       costSavings > 10 ? "Good" : 
-                       costSavings > 5 ? "Moderate" : 
-                       costSavings > 0 ? "Slight" : "Loss"}
+                      {costSavings > 10 ? "Excellent" : 
+                       costSavings > 5 ? "Very Good" : 
+                       costSavings > 2 ? "Good" : 
+                       costSavings > 0 ? "Moderate" : 
+                       costSavings > -1 ? "Slight" : "Loss"}
                     </div>
                   </div>
                   <div>
                     <div className="font-medium">Emissions</div>
                     <div className={cumulativeCO < 300 ? "text-green-600" : "text-red-600"}>
-                      {cumulativeCO < 100 ? "Excellent" : 
-                       cumulativeCO < 200 ? "Very Good" : 
-                       cumulativeCO < 300 ? "Good" : 
-                       cumulativeCO < 400 ? "Fair" : "Poor"}
+                      {cumulativeCO < 600 ? "Excellent" : 
+                       cumulativeCO < 700 ? "Very Good" : 
+                       cumulativeCO < 800 ? "Good" : 
+                       cumulativeCO < 1000 ? "Fair" : "Poor"}
                     </div>
                   </div>
                 </div>
