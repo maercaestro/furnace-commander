@@ -205,7 +205,7 @@ function App() {
   // Game related states and functions
   const [gameActive, setGameActive] = useState(false)
   const [gameCompleted, setGameCompleted] = useState(false)
-  const [timeRemaining, setTimeRemaining] = useState(600) // 10 minutes in seconds
+  const [timeRemaining, setTimeRemaining] = useState(300) // Changed from 600 to 300 (5 minutes in seconds)
   const [costSavings, setCostSavings] = useState(0)
   const [cumulativeO2, setCumulativeO2] = useState(0)
   const [cumulativeCO, setCumulativeCO] = useState(0)
@@ -216,11 +216,19 @@ function App() {
   const optimalFuelUsage = 8000 // baseline cost in $ per hour at optimal conditions
   const gasPricePerUnit = 0.5 // $ per unit of fuel
   
+  // Add new state variables to store final score snapshots
+  const [finalTemp, setFinalTemp] = useState(0)
+  const [finalO2, setFinalO2] = useState(0)
+  const [finalCostSavings, setFinalCostSavings] = useState(0)
+  const [finalCO, setFinalCO] = useState(0)
+  const [finalCO2, setFinalCO2] = useState(0)
+  const [finalTimeUsed, setFinalTimeUsed] = useState(0)
+
   // Function to start the game
   const startGame = () => {
     setGameActive(true)
     setGameCompleted(false)
-    setTimeRemaining(600)
+    setTimeRemaining(300) // Changed from 600 to 300 (5 minutes in seconds)
     setCostSavings(0)
     setCumulativeO2(0)
     setCumulativeCO(0)
@@ -234,7 +242,7 @@ function App() {
     setFuelFlow(10)
     setTempHistory([...Array(30)].map(() => 400))
     setO2History([...Array(30)].map(() => 2.0))
-    setLastAction("Game started! Reach the target temperature within 10 minutes while minimizing costs.")
+    setLastAction("Game started! Reach the target temperature within 5 minutes while minimizing costs.")
   }
   
   // Calculate CO emissions based on excess O2
@@ -243,10 +251,14 @@ function App() {
     if (excessO2 < optimalO2Min) {
       // Exponential increase in CO as O2 approaches zero
       return Math.min(1000, 10 * Math.exp(2 * (optimalO2Min - excessO2)))
+    } else if (excessO2 >= optimalO2Min && excessO2 <= optimalO2Max) {
+      // In optimal range - minimal constant CO emission (no incremental increase)
+      return 1; // Minimal baseline CO when in optimal range
+    } else {
+      // Above optimal range - slight increase due to inefficiency
+      return 3 + (excessO2 - optimalO2Max); // Small baseline plus slight increase
     }
-    // Very small baseline CO even with optimal combustion
-    return 5
-  }, [optimalO2Min])
+  }, [optimalO2Min, optimalO2Max])
   
   // Calculate CO2 emissions based on fuel flow and combustion efficiency
   const calculateCO2 = useCallback((fuelFlow, airFuelRatio) => {
@@ -274,7 +286,7 @@ function App() {
       costMultiplier = 1 + 0.2 * (excessO2 - optimalO2Max) / optimalO2Max
     } else {
       // In optimal range - generate savings
-      costMultiplier = 0.95
+      costMultiplier = 0.8
     }
     
     // Return cost impact (negative = savings, positive = additional cost)
@@ -293,6 +305,13 @@ function App() {
           clearInterval(gameTimer)
           setGameActive(false)
           setGameCompleted(true)
+          // Take snapshots of current values
+          setFinalTemp(currentTemp)
+          setFinalO2(excessO2)
+          setFinalCostSavings(costSavings)
+          setFinalCO(cumulativeCO)
+          setFinalCO2(cumulativeCO2)
+          setFinalTimeUsed(300) // Full time used
           setShowGameResults(true)
           setLastAction("Time's up! Check your results.")
           return 0
@@ -302,77 +321,81 @@ function App() {
     }, 1000)
     
     return () => clearInterval(gameTimer)
-  }, [gameActive])
-  
-  // Modified simulation effect to include game metrics
+  }, [gameActive, currentTemp, excessO2, costSavings, cumulativeCO, cumulativeCO2])
+
+  // Modify the temperature target check to take snapshots when target is reached
   useEffect(() => {
-    const simulationInterval = setInterval(() => {
-      // Only vary inflow conditions if NOT in manual control mode
-      if (!manualInflowControl) {
-        const newInflowTemp = inflowTemp + (Math.random() - 0.5) * 10
-        const newInflowRate = inflowRate + (Math.random() - 0.5) * 20
-        
-        // Constrain inflow temperature to 100-200°C
-        setInflowTemp(Math.max(100, Math.min(200, newInflowTemp)))
-        setInflowRate(Math.max(50, Math.min(200, newInflowRate))) // Keep within reasonable limits
-      }
-      
-      // Calculate new excess O2 using the heat-balance approach
-      const newO2 = calculateExcessO2(airFuelRatio, fuelFlow, currentTemp)
-      setExcessO2(newO2)
-      
-      // Calculate new temperature using heat transfer model
-      const newTemp = calculateTemperature(
-        fuelFlow,
-        airFlow,
-        currentTemp,
-        inflowTemp,
-        inflowRate
-      )
-      setCurrentTemp(Math.round(newTemp))
-      
-      // Check if O2 level is in optimal range
-      setIsOptimal(newO2 >= optimalO2Min && newO2 <= optimalO2Max)
-      
-      // Check if flow rate is in optimal range
-      setFlowRateOptimal(Math.abs(inflowRate - targetFlowRate) < 15)
-      
-      // Update history (keep last 30 readings)
-      setTempHistory(prev => [...prev.slice(1), Math.round(newTemp)])
-      setO2History(prev => [...prev.slice(1), newO2])
-      
-      // Game-related updates (if game is active)
-      if (gameActive) {
-        // Calculate CO and CO2 emissions for this time step
-        const coEmission = calculateCO(newO2) / 10.8 // Scaled for 1/3 second intervals
-        const co2Emission = calculateCO2(fuelFlow, airFuelRatio) / 10.8 // Scaled for 1/3 second intervals
-        
-        // Update cumulative values
-        setCumulativeO2(prev => prev + newO2 / 10.8) // Track average O2
-        setCumulativeCO(prev => prev + coEmission)
-        setCumulativeCO2(prev => prev + co2Emission)
-        
-        // Update cost savings
-        const costImpact = calculateCostImpact(newO2, fuelFlow) / 10.8 // Scaled for 1/3 second intervals
-        setCostSavings(prev => prev + costImpact)
-        
-        // Check for game completion (reaching target temp)
-        if (Math.abs(currentTemp - targetTemp) < 5 && !gameCompleted) {
-          setGameActive(false)
-          setGameCompleted(true)
-          setShowGameResults(true)
-          setLastAction(`Success! Target temperature reached with ${formatTime(timeRemaining)} remaining.`)
-        }
-      }
-    }, 333) // 3x speed
+    // Only check if game is active and not already completed
+    if (gameActive && !gameCompleted && Math.abs(currentTemp - targetTemp) < 5) {
+      setGameActive(false)
+      setGameCompleted(true)
+      // Take snapshots of current values
+      setFinalTemp(currentTemp)
+      setFinalO2(excessO2)
+      setFinalCostSavings(costSavings)
+      setFinalCO(cumulativeCO)
+      setFinalCO2(cumulativeCO2)
+      setFinalTimeUsed(300 - timeRemaining) // Time used until completion
+      setShowGameResults(true)
+      setLastAction(`Success! Target temperature reached with ${formatTime(timeRemaining)} remaining.`)
+    }
+  }, [gameActive, gameCompleted, currentTemp, targetTemp, timeRemaining, excessO2, costSavings, cumulativeCO, cumulativeCO2])
+
+  // Update the calculateGrade function to use final snapshots
+  const calculateGrade = () => {
+    // Base score out of 100
+    let score = 0;
     
-    return () => clearInterval(simulationInterval)
-  }, [
-    airFuelRatio, targetTemp, currentTemp, inflowTemp, inflowRate, 
-    calculateExcessO2, airFlow, fuelFlow, manualInflowControl, targetFlowRate, 
-    gameActive, gameCompleted, calculateCO, calculateCO2, calculateCostImpact
-  ])
-  
+    // Temperature accuracy (up to 40 points)
+    const tempAccuracy = Math.abs(finalTemp - targetTemp);
+    if (tempAccuracy < 5) {
+      score += 40; // Perfect temperature control
+    } else if (tempAccuracy < 10) {
+      score += 35; // Very good temperature control
+    } else if (tempAccuracy < 20) {
+      score += 25; // Good temperature control
+    } else if (tempAccuracy < 30) {
+      score += 15; // Fair temperature control
+    } else {
+      score += 5;  // Poor temperature control
+    }
+    
+    // Financial impact (up to 30 points)
+    if (finalCostSavings > 20) {
+      score += 30; // Excellent efficiency
+    } else if (finalCostSavings > 15) {
+      score += 25; // Very good efficiency
+    } else if (finalCostSavings > 10) {
+      score += 20; // Good efficiency
+    } else if (finalCostSavings > 5) {
+      score += 15; // Moderate efficiency
+    } else if (finalCostSavings > 0) {
+      score += 10; // Slight efficiency
+    } else {
+      score += 0;  // No savings or loss
+    }
+    
+    // Environmental impact (up to 30 points)
+    if (finalCO < 100) {
+      score += 30; // Excellent emissions control
+    } else if (finalCO < 200) {
+      score += 25; // Very good emissions control
+    } else if (finalCO < 300) {
+      score += 20; // Good emissions control
+    } else if (finalCO < 400) {
+      score += 10; // Fair emissions control
+    } else {
+      score += 0;  // Poor emissions control
+    }
+    
+    // Convert score to letter grade
+    if (score >= 90) return "A";
+    if (score >= 80) return "B";
+    if (score >= 70) return "C";
+    if (score >= 60) return "D";
+    return "F";
+  }
+
   // Helper function to format time
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60)
@@ -385,8 +408,8 @@ function App() {
       <div className="max-w-6xl mx-auto p-8">
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center">
-            <img src={logoFC} className="h-16 mr-4" alt="Furnace Commander logo" />
-            <h1 className="text-3xl font-bold text-gray-800">Furnace Commander</h1>
+            <img src={logoFC} className="h-30 mr-4" alt="Furnace Commander logo" />
+            <h1 className="text-3xl font-bold text-gray-800">Furnace Simulator</h1>
           </div>
           
           {/* Game Controls */}
@@ -394,7 +417,7 @@ function App() {
             {!gameActive && !gameCompleted && (
               <button 
                 onClick={startGame}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                className="bg-green-600 text-gray-700 px-4 py-2 rounded hover:bg-green-700"
               >
                 Start Challenge
               </button>
@@ -461,17 +484,33 @@ function App() {
             <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg w-full">
               <h2 className="text-2xl font-bold mb-4">Challenge Results</h2>
               
-              <div className="mb-6">
+              {/* Add grade display at the top */}
+              <div className="flex items-center justify-between mb-4">
                 <div className="text-lg font-semibold">
                   {gameCompleted && Math.abs(currentTemp - targetTemp) < 10 
                     ? '✅ Target Temperature Reached!' 
                     : '❌ Failed to Reach Target Temperature'}
                 </div>
+                <div className="flex flex-col items-center">
+                  <div className="text-sm font-medium text-gray-500">Overall Grade</div>
+                  <div className={`text-4xl font-bold ${
+                    calculateGrade() === 'A' ? 'text-green-600' :
+                    calculateGrade() === 'B' ? 'text-green-500' :
+                    calculateGrade() === 'C' ? 'text-yellow-500' :
+                    calculateGrade() === 'D' ? 'text-orange-500' :
+                    'text-red-600'
+                  }`}>
+                    {calculateGrade()}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mb-6">
                 <div className="text-gray-600">
                   Final temperature: {currentTemp}°C (Target: {targetTemp}°C)
                 </div>
                 <div className="text-gray-600">
-                  Time used: {formatTime(600 - timeRemaining)} {timeRemaining > 0 && `(${formatTime(timeRemaining)} remaining)`}
+                  Time used: {formatTime(300 - timeRemaining)} {timeRemaining > 0 && `(${formatTime(timeRemaining)} remaining)`}
                 </div>
               </div>
               
@@ -508,15 +547,50 @@ function App() {
                 </div>
               </div>
               
+              {/* Grade breakdown */}
+              <div className="p-4 bg-gray-50 rounded-lg mb-4">
+                <div className="font-medium mb-2">Grade Breakdown:</div>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <div className="font-medium">Temperature</div>
+                    <div className={Math.abs(currentTemp - targetTemp) < 10 ? "text-green-600" : "text-red-600"}>
+                      {Math.abs(currentTemp - targetTemp) < 5 ? "Perfect" : 
+                       Math.abs(currentTemp - targetTemp) < 10 ? "Very Good" : 
+                       Math.abs(currentTemp - targetTemp) < 20 ? "Good" : 
+                       Math.abs(currentTemp - targetTemp) < 30 ? "Fair" : "Poor"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-medium">Financial</div>
+                    <div className={costSavings > 0 ? "text-green-600" : "text-red-600"}>
+                      {costSavings > 20 ? "Excellent" : 
+                       costSavings > 15 ? "Very Good" : 
+                       costSavings > 10 ? "Good" : 
+                       costSavings > 5 ? "Moderate" : 
+                       costSavings > 0 ? "Slight" : "Loss"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-medium">Emissions</div>
+                    <div className={cumulativeCO < 300 ? "text-green-600" : "text-red-600"}>
+                      {cumulativeCO < 100 ? "Excellent" : 
+                       cumulativeCO < 200 ? "Very Good" : 
+                       cumulativeCO < 300 ? "Good" : 
+                       cumulativeCO < 400 ? "Fair" : "Poor"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
               <div className="flex justify-between">
                 <button
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  className="bg-blue-600 text-gray-700 px-4 py-2 rounded hover:bg-blue-700"
                   onClick={() => startGame()}
                 >
                   Try Again
                 </button>
                 <button
-                  className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                  className="bg-gray-500 text-gray-700 px-4 py-2 rounded hover:bg-gray-600"
                   onClick={() => setShowGameResults(false)}
                 >
                   Close
