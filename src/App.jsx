@@ -154,8 +154,8 @@ function App() {
     const simInterval = setInterval(() => {
       // 1) randomize inflow if in auto mode
       if (!manualInflowControl) {
-        const newTemp  = inflowTempRef.current + (Math.random() - 0.5) * 10
-        const newRate  = inflowRateRef.current + (Math.random() - 0.5) * 20
+        const newTemp = inflowTempRef.current + (Math.random() - 0.5) * 5  // Reduced from ±10 to ±5
+        const newRate = inflowRateRef.current + (Math.random() - 0.5) * 5   // Reduced from ±20 to ±5
         setInflowTemp(Math.max(100, Math.min(200, newTemp)))
         setInflowRate(Math.max(50, Math.min(200, newRate)))
       }
@@ -274,7 +274,7 @@ function App() {
     // CO increases exponentially as O2 decreases below optimal
     if (excessO2 < optimalO2Min) {
       // Exponential increase in CO as O2 approaches zero
-      return Math.min(1000, 10 * Math.exp(2 * (optimalO2Min - excessO2)))
+      return Math.min(100, 6 * Math.exp(1.6 * (optimalO2Min - excessO2)))
     } else if (excessO2 >= optimalO2Min && excessO2 <= optimalO2Max) {
       // In optimal range - minimal constant CO emission with NO incremental increase
       return 0; // Zero CO emissions in optimal range
@@ -385,13 +385,13 @@ function App() {
     }
     
     // Financial impact (up to 30 points)
-    if (finalCostSavings > 20) {
+    if (finalCostSavings > 10) {
       score += 30; // Excellent efficiency
-    } else if (finalCostSavings > 15) {
-      score += 25; // Very good efficiency
-    } else if (finalCostSavings > 10) {
-      score += 20; // Good efficiency
     } else if (finalCostSavings > 5) {
+      score += 25; // Very good efficiency
+    } else if (finalCostSavings > 2) {
+      score += 20; // Good efficiency
+    } else if (finalCostSavings > 1.5) {
       score += 15; // Moderate efficiency
     } else if (finalCostSavings > 0) {
       score += 10; // Slight efficiency
@@ -400,13 +400,13 @@ function App() {
     }
     
     // Environmental impact (up to 30 points)
-    if (finalCO < 100) {
+    if (finalCO < 600) {
       score += 30; // Excellent emissions control
-    } else if (finalCO < 200) {
+    } else if (finalCO <700) {
       score += 25; // Very good emissions control
-    } else if (finalCO < 300) {
+    } else if (finalCO < 800) {
       score += 20; // Good emissions control
-    } else if (finalCO < 400) {
+    } else if (finalCO < 1000) {
       score += 10; // Fair emissions control
     } else {
       score += 0;  // Poor emissions control
