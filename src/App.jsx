@@ -1,3 +1,4 @@
+import React from 'react'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import logoFC from './assets/logo_fc.png'
@@ -611,7 +612,7 @@ function App() {
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center">
             <img src={logoFC} className="h-30 mr-4" alt="Furnace Commander logo" />
-            <h1 className="text-3xl font-bold text-gray-800">Furnace Simulator</h1>
+            <h2 className="text-3xl font-bold text-gray-800">Furnace Simulator</h2>
           </div>
           
           {/* Game Controls */}
@@ -620,15 +621,21 @@ function App() {
               <>
                 <button 
                   onClick={handleStartClick}
-                  className="bg-green-600 text-gray-700 px-4 py-2 rounded hover:bg-green-700"
+                  className="bg-gray-50 text-gray-700 px-4 py-2 rounded hover:bg-green-700"
                 >
                   Start Challenge
                 </button>
                 <Link 
                   to="/leaderboard"
-                  className="bg-gray-50 text-gray-700 px-4 py-2 rounded hover:bg-gray-700"
+                  className="bg-gray-50 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
                 >
                   View Leaderboard
+                </Link>
+                <Link 
+                  to="/ai-demo"
+                  className="bg-gray-50 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
+                >
+                  AI Control Demo
                 </Link>
               </>
             )}
