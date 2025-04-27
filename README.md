@@ -48,7 +48,7 @@ An interactive furnace simulation game and AI control demonstration that teaches
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/furnace-commander.git
+git clone https://github.com/maecaestro/furnace-commander.git
 cd furnace-commander
 ```
 
