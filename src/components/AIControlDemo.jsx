@@ -44,6 +44,10 @@ const AIControlDemo = () => {
   const [inflowTempHistory, setInflowTempHistory] = useState([150]);
   const [inflowRateHistory, setInflowRateHistory] = useState([75]);
   
+  // Add AI decision tracking
+  const [lastPrediction, setLastPrediction] = useState({ temp: 400, o2: 2.0 });
+  const [aiDecisionHistory, setAiDecisionHistory] = useState([]);
+  
   // Constants from your training script
   const inputMeans = [10.5, 12.8, 262.5, 150.0, 125.0];
   const inputStds = [5.5, 7.05, 137.0, 29.0, 43.0];
@@ -85,6 +89,8 @@ const AIControlDemo = () => {
       setInflowTempHistory([150]);
       setInflowRateHistory([75]);
       setCompleted(false);
+      setLastPrediction({ temp: 400, o2: 2.0 }); // Reset AI predictions
+      setAiDecisionHistory([]); // Reset AI decision history
     }
   }, [running]);
   
@@ -100,18 +106,18 @@ const AIControlDemo = () => {
       costChange = -0.05 * (o2Level - optimalO2Max); // Penalty for excess O2
     }
     
-    // CO emissions calculation - increase sensitivity to low O2
+    // CO emissions calculation - match main game formula exactly
     let coEmission = 0;
-    if (o2Level < 1.0) {
-      // Exponential growth of CO at very low O2 levels
-      coEmission = 3.0 * Math.exp(2.0 * (1.0 - o2Level));
-    } else if (o2Level < optimalO2Min) {
-      // Linear increase in low but not critical O2 region
-      coEmission = 0.5 * (optimalO2Min - o2Level);
+    if (o2Level < optimalO2Min) {
+      // Exponential increase in CO as O2 approaches zero (same as main game)
+      coEmission = Math.min(100, 6 * Math.exp(1.6 * (optimalO2Min - o2Level)));
+    } else if (o2Level >= optimalO2Min && o2Level <= optimalO2Max) {
+      // In optimal range - zero CO emissions (same as main game)
+      coEmission = 0;
+    } else {
+      // Above optimal range - slight increase due to inefficiency (same as main game)
+      coEmission = 1 + (o2Level - optimalO2Max);
     }
-    
-    // Factor in fuel flow - higher fuel flow with low O2 creates more CO
-    coEmission *= (fuel / 10.0);
     
     // CO2 is roughly proportional to fuel use
     const co2Emission = 0.1 * fuel;
@@ -141,9 +147,12 @@ const AIControlDemo = () => {
     else if (cost > 2) gradePoints += 10;
     else if (cost > 0) gradePoints += 5;
     
-    // CO emissions (up to 10 points)
-    if (co < 10) gradePoints += 10;
-    else if (co < 30) gradePoints += 5;
+    // CO emissions (up to 10 points) - match main game thresholds
+    if (co < 600) gradePoints += 10;      // Excellent emissions control
+    else if (co < 700) gradePoints += 8;  // Very good emissions control  
+    else if (co < 800) gradePoints += 6;  // Good emissions control
+    else if (co < 1000) gradePoints += 3; // Fair emissions control
+    // else 0 points for poor emissions control
     
     // Determine letter grade
     let letterGrade;
@@ -174,23 +183,22 @@ const AIControlDemo = () => {
       // Update furnace state based on prediction
       const [predictedTemp, predictedO2] = prediction;
       
-      // Apply prediction with some noise and dynamics
-      // Adjust temperature to gradually approach target from 400°C
-      const tempRampFactor = Math.min(1, newTime / 30); // Ramp up over 30 seconds
-      const targetTempDifference = targetTemp - 400;
-      const rampedTarget = 400 + (targetTempDifference * tempRampFactor);
-      
       // Calculate inflow impact - higher inflow temp and rate increase furnace temperature
       const inflowImpact = 0.02 * ((inflowTemp - 150) / 50) + 0.01 * ((inflowRate - 75) / 25);
       
-      // Calculate new temperature with tendency to move toward ramped target plus inflow impact
-      const tempError = rampedTarget - currentTemp;
-      const newTemp = currentTemp + (tempError * 0.05) + inflowImpact + (Math.random() - 0.5) * 2;
+      // Calculate physics-based temperature change toward target
+      const tempError = targetTemp - currentTemp;
+      const physicsComponent = tempError * 0.02; // Slower natural response
+      const lnnComponent = (predictedTemp - currentTemp) * 0.3; // LNN influence on temperature change
       
-      // Calculate new O2 with prediction and noise
+      const newTemp = currentTemp + physicsComponent + lnnComponent + inflowImpact + (Math.random() - 0.5) * 2;
+      
+      // Calculate new O2 with stronger LNN prediction influence
       // Make O2 more responsive to fuel changes - high fuel flow tends to reduce O2 levels
       const fuelImpactOnO2 = 0.1 * Math.max(0, (fuelFlow - 10) / 10); // Higher fuel can deplete O2
-      const newO2 = Math.max(0.1, excessO2 * 0.8 + predictedO2 * 0.2 - fuelImpactOnO2 + (Math.random() - 0.5) * 0.1);
+      
+      // Use 60% LNN prediction, 40% current state for more AI influence
+      const newO2 = Math.max(0.1, excessO2 * 0.4 + predictedO2 * 0.6 - fuelImpactOnO2 + (Math.random() - 0.5) * 0.1);
       
       const newInflowTemp = inflowTemp + (Math.random() - 0.5) * 10; // Change by up to ±5°C per second
       const boundedInflowTemp = Math.max(100, Math.min(200, newInflowTemp)); // Keep within 100-200°C
@@ -199,9 +207,30 @@ const AIControlDemo = () => {
       const boundedInflowRate = Math.max(50, Math.min(150, newInflowRate)); // Keep within 50-150 units/h
 
 
-      // Calculate optimal control actions
-      const optimalFuelFlow = calculateOptimalFuel(newTemp, rampedTarget);
-      const optimalAFR = calculateOptimalAFR(newO2);
+      // Store LNN predictions for tracking
+      setLastPrediction({ temp: predictedTemp, o2: predictedO2 });
+      
+      // Calculate AI-based control actions using LNN predictions
+      const optimalFuelFlow = calculateAIFuelControl(predictedTemp, newTemp, targetTemp);
+      const optimalAFR = calculateAIAirControl(predictedO2, newO2);
+      
+      // Track AI decision reasoning
+      const aiDecision = {
+        timestamp: newTime,
+        predictions: { temp: predictedTemp, o2: predictedO2 },
+        currentState: { temp: newTemp, o2: newO2, target: targetTemp },
+        decisions: { fuel: optimalFuelFlow, afr: optimalAFR },
+        reasoning: {
+          tempError: targetTemp - newTemp,
+          predictedTempError: targetTemp - predictedTemp,
+          o2Error: 2.0 - newO2,
+          predictedO2Error: 2.0 - predictedO2,
+          fuelChange: optimalFuelFlow - fuelFlow,
+          afrChange: optimalAFR - airFuelRatio
+        }
+      };
+      
+      setAiDecisionHistory(prev => [...prev, aiDecision].slice(-20)); // Keep last 20 decisions
       
       // Calculate cost and emissions
       const { costChange, coEmission, co2Emission } = calculateCostAndEmissions(newO2, optimalFuelFlow);
@@ -230,14 +259,19 @@ const AIControlDemo = () => {
       // Track inflow rate
       setInflowRateHistory(prev => [...prev, boundedInflowRate].slice(-50));
       
-      // Check if simulation should complete (after 60 seconds or when temp is stable near target)
-      if (newTime > 60 || (Math.abs(newTemp - targetTemp) < 5 && newTime > 30)) {
-        // Calculate score and grade
-        const { points, grade } = calculateGrade(newTemp, newO2, newCostSavings, newCumulativeCO);
-        setScore(points);
-        setGrade(grade);
+      // Check if simulation should complete
+      const isAtTarget = Math.abs(newTemp - targetTemp) < 3; // Tighter tolerance for stopping
+      const hasBeenRunning = newTime > 30; // Minimum runtime before allowing completion
+      const maxTimeReached = newTime > 600; // 10 minute maximum
+      
+      if (maxTimeReached || (isAtTarget && hasBeenRunning)) {
         setCompleted(true);
         setRunning(false);
+        
+        // Calculate final grade
+        const { points, grade: finalGrade } = calculateGrade(newTemp, newO2, newCostSavings, newCumulativeCO);
+        setScore(points);
+        setGrade(finalGrade);
       }
       
     }, 1000);
@@ -288,15 +322,59 @@ const AIControlDemo = () => {
     }
   };
   
-  const calculateOptimalFuel = (temp, target) => {
-    const error = target - temp;
-    return Math.max(5, Math.min(20, fuelFlow + error * 0.05));
+  const calculateAIFuelControl = (predictedTemp, currentTemp, targetTemp) => {
+    // Use LNN prediction to make fuel control decisions
+    const tempError = targetTemp - currentTemp;
+    const predictedError = targetTemp - predictedTemp;
+    
+    // If LNN predicts we'll overshoot, reduce fuel more aggressively
+    // If LNN predicts we'll undershoot, increase fuel more aggressively
+    let fuelAdjustment = 0;
+    
+    if (predictedError > 10) {
+      // LNN predicts we'll be too cold - increase fuel significantly
+      fuelAdjustment = 0.5;
+    } else if (predictedError > 5) {
+      // LNN predicts we'll be slightly cold - increase fuel moderately
+      fuelAdjustment = 0.3;
+    } else if (predictedError < -10) {
+      // LNN predicts we'll be too hot - decrease fuel significantly
+      fuelAdjustment = -0.5;
+    } else if (predictedError < -5) {
+      // LNN predicts we'll be slightly hot - decrease fuel moderately
+      fuelAdjustment = -0.3;
+    } else {
+      // LNN predicts we're on target - adjustment based on current error
+      fuelAdjustment = tempError * 0.05; // Increased from 0.02 to 0.05
+    }
+    
+    return Math.max(5, Math.min(20, fuelFlow + fuelAdjustment));
   };
   
-  const calculateOptimalAFR = (o2) => {
-    if (o2 < 1.5) return Math.min(25, airFuelRatio + 0.2);
-    if (o2 > 2.5) return Math.max(10, airFuelRatio - 0.2);
-    return airFuelRatio;
+  const calculateAIAirControl = (predictedO2, currentO2) => {
+    // Use LNN prediction to make air-fuel ratio control decisions
+    const targetO2 = 2.0; // Optimal O2 level
+    const currentError = targetO2 - currentO2;
+    const predictedError = targetO2 - predictedO2;
+    
+    let afrAdjustment = 0;
+    
+    // If LNN predicts O2 will be too low, increase AFR (more air)
+    if (predictedO2 < 1.5) {
+      afrAdjustment = 0.6; // Aggressive increase
+    } else if (predictedO2 < 1.8) {
+      afrAdjustment = 0.3; // Moderate increase
+    } else if (predictedO2 > 2.5) {
+      // LNN predicts O2 will be too high, decrease AFR (less air)
+      afrAdjustment = -0.5; // Aggressive decrease
+    } else if (predictedO2 > 2.2) {
+      afrAdjustment = -0.25; // Moderate decrease
+    } else {
+      // LNN predicts good O2 range - fine tune based on current error
+      afrAdjustment = currentError * 0.2; // Increased from 0.1 to 0.2
+    }
+    
+    return Math.max(10, Math.min(25, airFuelRatio + afrAdjustment));
   };
 
   // Format time display
@@ -325,8 +403,8 @@ const AIControlDemo = () => {
             <div className="bg-gray-50 p-3 rounded">
               <div className="text-sm text-gray-600">Target Status</div>
               <div className="flex items-center">
-                <div className={`text-lg font-bold ${Math.abs(currentTemp - targetTemp) < 10 ? 'text-green-600' : 'text-orange-600'}`}>
-                  {Math.abs(currentTemp - targetTemp) < 10 ? 'On Target' : `${Math.abs(currentTemp - targetTemp).toFixed(1)}°C off`}
+                <div className={`text-lg font-bold ${Math.abs(currentTemp - targetTemp) < 3 ? 'text-green-600' : 'text-orange-600'}`}>
+                  {Math.abs(currentTemp - targetTemp) < 3 ? 'On Target' : `${Math.abs(currentTemp - targetTemp).toFixed(1)}°C off`}
                 </div>
                 <div className="text-sm text-gray-500 ml-2">({targetTemp}°C)</div>
               </div>
@@ -341,7 +419,7 @@ const AIControlDemo = () => {
             
             <div className="bg-gray-50 p-3 rounded">
               <div className="text-sm text-gray-600">CO Emissions</div>
-              <div className={`text-lg font-bold ${cumulativeCO < 30 ? 'text-green-600' : 'text-red-600'}`}>
+              <div className={`text-lg font-bold ${cumulativeCO < 300 ? 'text-green-600' : 'text-red-600'}`}>
                 {cumulativeCO.toFixed(1)} kg
               </div>
             </div>
@@ -374,7 +452,7 @@ const AIControlDemo = () => {
             <div className="mb-6 bg-gray-50 p-4 rounded-lg">
               <div className="flex items-center justify-between mb-4">
                 <div className="text-lg font-semibold">
-                  {Math.abs(currentTemp - targetTemp) < 10 
+                  {Math.abs(currentTemp - targetTemp) < 3 
                     ? '✅ Target Temperature Reached!' 
                     : '❌ Failed to Reach Target Temperature'}
                 </div>
@@ -414,7 +492,7 @@ const AIControlDemo = () => {
                 </div>
                 <div>
                   <div className="text-sm text-gray-600 mb-1">Environmental Impact:</div>
-                  <div className={`${cumulativeCO < 30 ? 'text-green-600' : 'text-red-600'}`}>
+                  <div className={`${cumulativeCO < 300 ? 'text-green-600' : 'text-red-600'}`}>
                     CO emissions: {cumulativeCO.toFixed(1)} kg
                   </div>
                 </div>
@@ -574,7 +652,7 @@ const AIControlDemo = () => {
                   </div>
                   <div className="flex justify-between">
                     <span>Status:</span>
-                    <span className="font-medium text-green-600">Ready</span>
+                    <span className="font-medium text-green-600">{running ? 'Controlling' : 'Ready'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Control Goal:</span>
@@ -585,8 +663,90 @@ const AIControlDemo = () => {
                     <span className="font-medium">400°C → {targetTemp}°C</span>
                   </div>
                 </div>
+                
+                {running && lastPrediction && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <h4 className="font-semibold text-sm mb-2 text-blue-600">AI Predictions</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-600">Next Temp:</span>
+                        <span className="font-medium ml-1">{lastPrediction.temp.toFixed(1)}°C</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Next O₂:</span>
+                        <span className="font-medium ml-1">{lastPrediction.o2.toFixed(2)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
+            
+            {/* AI Decision Process Display */}
+            {running && aiDecisionHistory.length > 0 && (
+              <div className="mt-6">
+                <h3 className="font-bold text-lg mb-2">AI Decision Process</h3>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  {(() => {
+                    const latestDecision = aiDecisionHistory[aiDecisionHistory.length - 1];
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <h4 className="font-semibold text-sm mb-2 text-blue-600">Current Analysis</h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Temp Error:</span>
+                              <span className={`font-medium ${Math.abs(latestDecision.reasoning.tempError) < 5 ? 'text-green-600' : 'text-orange-600'}`}>
+                                {latestDecision.reasoning.tempError > 0 ? '+' : ''}{latestDecision.reasoning.tempError.toFixed(1)}°C
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Predicted Error:</span>
+                              <span className={`font-medium ${Math.abs(latestDecision.reasoning.predictedTempError) < 5 ? 'text-green-600' : 'text-orange-600'}`}>
+                                {latestDecision.reasoning.predictedTempError > 0 ? '+' : ''}{latestDecision.reasoning.predictedTempError.toFixed(1)}°C
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">O₂ Error:</span>
+                              <span className={`font-medium ${Math.abs(latestDecision.reasoning.o2Error) < 0.3 ? 'text-green-600' : 'text-orange-600'}`}>
+                                {latestDecision.reasoning.o2Error > 0 ? '+' : ''}{latestDecision.reasoning.o2Error.toFixed(2)}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <h4 className="font-semibold text-sm mb-2 text-green-600">AI Actions</h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Fuel Adjustment:</span>
+                              <span className={`font-medium ${latestDecision.reasoning.fuelChange > 0 ? 'text-red-600' : latestDecision.reasoning.fuelChange < 0 ? 'text-blue-600' : 'text-gray-600'}`}>
+                                {latestDecision.reasoning.fuelChange > 0 ? '+' : ''}{latestDecision.reasoning.fuelChange.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">AFR Adjustment:</span>
+                              <span className={`font-medium ${latestDecision.reasoning.afrChange > 0 ? 'text-blue-600' : latestDecision.reasoning.afrChange < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                {latestDecision.reasoning.afrChange > 0 ? '+' : ''}{latestDecision.reasoning.afrChange.toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Strategy:</span>
+                              <span className="font-medium text-gray-800">
+                                {Math.abs(latestDecision.reasoning.predictedTempError) > 10 
+                                  ? (latestDecision.reasoning.predictedTempError > 0 ? 'Heat Up' : 'Cool Down')
+                                  : 'Fine-tune'
+                                }
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
             
             <div className="mt-6">
               <h3 className="font-bold text-lg mb-2">Instructions</h3>
@@ -603,7 +763,7 @@ const AIControlDemo = () => {
                 <ol className="list-decimal pl-5 space-y-1">
                   <li>Click "Start AI Control" to begin the simulation</li>
                   <li>Watch as the AI controller adjusts fuel and air to reach {targetTemp}°C</li>
-                  <li>The simulation runs for up to 60 seconds or until temperature stabilizes</li>
+                  <li>The simulation runs for up to 10 minutes or until temperature stabilizes</li>
                   <li>Your final score will be based on temperature accuracy, O₂ control, cost savings, and emissions</li>
                 </ol>
               </div>
@@ -614,15 +774,20 @@ const AIControlDemo = () => {
         <div className="mt-6">
           <h3 className="font-bold text-lg mb-2">How It Works</h3>
           <p className="text-gray-700">
-            This demonstration shows how your trained LiquidNN neural network model can be used
-            to predict and control furnace behavior. The AI controller:
+            This demonstration shows how your trained LiquidNN neural network model directly controls
+            the furnace system. The AI controller operates in real-time by:
           </p>
           <ul className="list-disc pl-5 mt-2 space-y-1 text-gray-700">
-            <li>Predicts future temperature and excess O₂ based on current conditions</li>
-            <li>Adjusts fuel flow and air/fuel ratio to maintain optimal combustion</li>
-            <li>Balances reaching target temperature while keeping excess O₂ in the 1.5-2.5% range</li>
-            <li>Demonstrates how a machine learning model can replace traditional PID controllers</li>
+            <li><strong>Predicting Future States:</strong> Uses current conditions to predict temperature and O₂ levels one step ahead</li>
+            <li><strong>Making Control Decisions:</strong> Adjusts fuel flow based on predicted vs. target temperature errors</li>
+            <li><strong>Optimizing Air-Fuel Ratio:</strong> Modifies AFR based on predicted O₂ levels to maintain 1.5-2.5% range</li>
+            <li><strong>Adapting to Disturbances:</strong> Responds to changing inlet conditions (temperature and flow rate)</li>
+            <li><strong>Balancing Objectives:</strong> Simultaneously optimizes temperature control, emissions, and cost efficiency</li>
           </ul>
+          <p className="text-gray-700 mt-2">
+            <strong>Key Difference:</strong> Unlike traditional PID controllers that react to current errors, 
+            this AI controller uses neural network predictions to make proactive control decisions.
+          </p>
         </div>
       </div>
       

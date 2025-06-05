@@ -78,32 +78,13 @@ train_ds, val_ds = random_split(
 train_loader = DataLoader(train_ds, batch_size=64, shuffle=True,  drop_last=True)
 val_loader   = DataLoader(val_ds,   batch_size=64, shuffle=False, drop_last=False)
 
-
-
-# 3. Dataset + DataLoader
-class FurnaceDataset(Dataset):
-    def __init__(self, sequences):
-        self.seq = sequences
-    def __len__(self):
-        return len(self.seq)
-    def __getitem__(self, i):
-        u, y = self.seq[i]
-        return torch.from_numpy(u), torch.from_numpy(y)
-
-ds = FurnaceDataset(sequences)
-loader = DataLoader(ds, batch_size=64, shuffle=True, drop_last=True)
-
-# after: loader = DataLoader(…)
-for u_batch, y_batch in loader:
-    # compute per-feature mean/std over (batch, timestep)
-    u_mean = u_batch.mean(dim=(0,1))
-    u_std  = u_batch.std(dim=(0,1))
-    y_mean = y_batch.mean(dim=(0,1))
-    y_std  = y_batch.std(dim=(0,1))
-    print(">> u mean:", u_mean)
-    print(">> u std: ", u_std)
-    print(">> y mean:", y_mean)
-    print(">> y std: ", y_std)
+# Quick data sanity check
+print(f"Dataset loaded: {len(sequences)} sequences")
+print(f"Train/Val split: {n_train}/{n_val} sequences")
+for u_batch, y_batch in train_loader:
+    print(f"Batch shapes: Input {u_batch.shape}, Target {y_batch.shape}")
+    print(f"Input ranges: {u_batch.min():.3f} to {u_batch.max():.3f}")
+    print(f"Target ranges: {y_batch.min():.3f} to {y_batch.max():.3f}")
     break
 
 
@@ -134,15 +115,31 @@ class LiquidNN(nn.Module):
             outs.append(self.readout(x))
         return torch.stack(outs, dim=1)
 
-# 5. Training setup
+# 5. Training setup with convergence monitoring
 device   = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model    = LiquidNN(in_dim=5, hid_dim=64, out_dim=2).to(device)
 criterion= nn.MSELoss()
 opt      = torch.optim.Adam(model.parameters(), lr=5e-4)
-epochs   = 1000
 
-for epoch in range(1, epochs+1):
-    # --- training pass ---
+# Training parameters
+max_epochs = 2000
+patience = 50  # Early stopping patience
+min_delta = 1e-5  # Minimum improvement threshold
+best_val_loss = float('inf')
+patience_counter = 0
+best_model_state = None
+
+# Training history for analysis
+train_losses = []
+val_losses = []
+
+print(f"Starting training on {device}")
+print(f"Training samples: {n_train}, Validation samples: {n_val}")
+print(f"Early stopping: patience={patience}, min_delta={min_delta}")
+print("-" * 60)
+
+for epoch in range(1, max_epochs + 1):
+    # --- Training pass ---
     model.train()
     train_loss = 0.0
     for u_batch, y_batch in train_loader:
@@ -156,7 +153,7 @@ for epoch in range(1, epochs+1):
         train_loss += loss.item() * u_batch.size(0)
     train_loss /= n_train
 
-    # --- validation pass ---
+    # --- Validation pass ---
     model.eval()
     val_loss = 0.0
     with torch.no_grad():
@@ -166,27 +163,117 @@ for epoch in range(1, epochs+1):
             loss  = criterion(preds, y_batch)
             val_loss += loss.item() * u_batch.size(0)
     val_loss /= n_val
+    
+    # Store losses for analysis
+    train_losses.append(train_loss)
+    val_losses.append(val_loss)
+    
+    # Print progress
+    if epoch % 10 == 0 or epoch <= 10:
+        print(f"Epoch {epoch:4d}/{max_epochs}  "
+              f"Train Loss: {train_loss:.6f}  "
+              f"Val Loss: {val_loss:.6f}  "
+              f"Best: {best_val_loss:.6f}")
+    
+    # Early stopping logic
+    if val_loss < best_val_loss - min_delta:
+        best_val_loss = val_loss
+        patience_counter = 0
+        # Save best model state
+        best_model_state = model.state_dict().copy()
+        if epoch % 10 != 0 and epoch > 10:
+            print(f"Epoch {epoch:4d}/{max_epochs}  "
+                  f"Train Loss: {train_loss:.6f}  "
+                  f"Val Loss: {val_loss:.6f}  "
+                  f"*** NEW BEST ***")
+    else:
+        patience_counter += 1
+    
+    # Check for convergence
+    if patience_counter >= patience:
+        print(f"\nEarly stopping at epoch {epoch}")
+        print(f"Best validation loss: {best_val_loss:.6f}")
+        print(f"No improvement for {patience} epochs")
+        break
 
-    print(f"Epoch {epoch:02d}/{epochs}  "
-          f"- Train Loss: {train_loss:.4f}  "
-          f"- Val Loss: {val_loss:.4f}")
+# Restore best model
+if best_model_state is not None:
+    model.load_state_dict(best_model_state)
+    print(f"\nRestored best model with validation loss: {best_val_loss:.6f}")
 
-# 7. Save the model
+# Training summary
+print("\n" + "="*60)
+print("TRAINING SUMMARY")
+print("="*60)
+print(f"Total epochs: {epoch}")
+print(f"Best validation loss: {best_val_loss:.6f}")
+print(f"Final train loss: {train_losses[-1]:.6f}")
+print(f"Final val loss: {val_losses[-1]:.6f}")
+
+# Check for overfitting
+if len(train_losses) > 50:
+    recent_train = np.mean(train_losses[-10:])
+    recent_val = np.mean(val_losses[-10:])
+    overfitting_ratio = recent_val / recent_train
+    print(f"Overfitting check (val/train ratio): {overfitting_ratio:.3f}")
+    if overfitting_ratio > 1.5:
+        print("⚠️  WARNING: Possible overfitting detected!")
+    elif overfitting_ratio < 1.1:
+        print("✅ Good generalization")
+    else:
+        print("📊 Moderate generalization")
+
+# Convergence analysis
+if len(val_losses) > 20:
+    last_20_std = np.std(val_losses[-20:])
+    print(f"Validation stability (last 20 epochs std): {last_20_std:.6f}")
+    if last_20_std < 0.001:
+        print("✅ Model converged (stable validation loss)")
+    else:
+        print("⚠️  Model may need more training or different hyperparameters")
+
+# 7. Save the model with metadata
+print("\n" + "="*60)
+print("SAVING MODEL")
+print("="*60)
 
 model.eval()
+
+# Save training metadata
+converged = len(val_losses) > 20 and np.std(val_losses[-20:]) < 0.001
+metadata = {
+    'final_epoch': int(epoch),
+    'best_val_loss': float(best_val_loss),
+    'final_train_loss': float(train_losses[-1]),
+    'final_val_loss': float(val_losses[-1]),
+    'input_means': [float(x) for x in input_means],
+    'input_stds': [float(x) for x in input_stds],
+    'target_means': [float(x) for x in target_means],
+    'target_stds': [float(x) for x in target_stds],
+    'training_converged': bool(converged),
+    'total_epochs_run': int(epoch),
+    'patience_used': int(patience),
+    'min_delta_used': float(min_delta)
+}
+
+# Save metadata to file
+import json
+metadata_path = os.path.join(os.path.dirname(__file__), "models", "training_metadata.json")
+os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
+with open(metadata_path, 'w') as f:
+    json.dump(metadata, f, indent=2)
+
+print(f"Training metadata saved to: {metadata_path}")
+
+# Save TorchScript model
 scripted = torch.jit.script(model.cpu())
-scripted.save("lnn_model.ts")    # saves to lnn_model.ts
+scripted.save("lnn_model.ts")
+print("TorchScript model saved to: lnn_model.ts")
 
-# 8. export to ONNX
-
+# 8. Export to ONNX
 # Create a dummy input tensor with the same shape as your model expects
 dummy_input = torch.randn(1, 30, 5)  # Batch size 1, sequence length 30, 5 input features
 
-# Export to TorchScript (your existing code)
-scripted = torch.jit.script(model.cpu())
-scripted.save("lnn_model.ts")
-
-# Export to ONNX
 onnx_path = os.path.join(os.path.dirname(__file__), "models", "lnn_model.onnx")
 os.makedirs(os.path.dirname(onnx_path), exist_ok=True)
 
@@ -205,4 +292,14 @@ torch.onnx.export(
     }
 )
 print(f"ONNX model saved to: {onnx_path}")
+
+print(f"\n{'='*60}")
+print("TRAINING COMPLETE!")
+print(f"{'='*60}")
+print(f"Best model achieved validation loss: {best_val_loss:.6f}")
+print(f"Models saved:")
+print(f"  - TorchScript: lnn_model.ts")
+print(f"  - ONNX: {onnx_path}")
+print(f"  - Metadata: {metadata_path}")
+print(f"{'='*60}")
 

@@ -203,17 +203,8 @@ function App() {
       
       // 5) check if target reached during game
       if (gameActive && !gameCompleted && Math.abs(temp - targetTemp) < 5) {
-        setGameActive(false)
-        setGameCompleted(true)
-        // Take snapshots using refs for accuracy
-        setFinalTemp(temp)
-        setFinalO2(o2)
-        setFinalCostSavings(costSavingsRef.current)
-        setFinalCO(cumulativeCORef.current)
-        setFinalCO2(cumulativeCO2Ref.current)
-        setFinalTimeUsed(300 - timeRemaining) // Time used until completion
-        setShowGameResults(true)
-        setLastAction(`Success! Target temperature reached with ${formatTime(timeRemaining)} remaining.`)
+        handleGameComplete();
+        setLastAction(`Success! Target temperature reached with ${formatTime(timeRemaining)} remaining.`);
       }
     }, 333)
 
@@ -378,17 +369,8 @@ function App() {
   useEffect(() => {
     // Only check if game is active and not already completed
     if (gameActive && !gameCompleted && Math.abs(currentTemp - targetTemp) < 5) {
-      setGameActive(false)
-      setGameCompleted(true)
-      // Take snapshots of current values
-      setFinalTemp(currentTemp)
-      setFinalO2(excessO2)
-      setFinalCostSavings(costSavings)
-      setFinalCO(cumulativeCO)
-      setFinalCO2(cumulativeCO2)
-      setFinalTimeUsed(300 - timeRemaining) // Time used until completion
-      setShowGameResults(true)
-      setLastAction(`Success! Target temperature reached with ${formatTime(timeRemaining)} remaining.`)
+      handleGameComplete();
+      setLastAction(`Success! Target temperature reached with ${formatTime(timeRemaining)} remaining.`);
     }
   }, [gameActive, gameCompleted, currentTemp, targetTemp, timeRemaining, excessO2, costSavings, cumulativeCO, cumulativeCO2])
   
@@ -482,6 +464,14 @@ function App() {
     // Base score out of 100
     let score = 0;
     
+    console.log("Score calculation inputs:", {
+      finalTemp,
+      targetTemp,
+      finalO2,
+      finalCostSavings,
+      finalCO
+    });
+    
     // Temperature accuracy (up to 40 points)
     const tempAccuracy = Math.abs(finalTemp - targetTemp);
     if (tempAccuracy < 10) {
@@ -514,7 +504,7 @@ function App() {
     // Environmental impact (up to 30 points)
     if (finalCO < 600) {
       score += 30; // Excellent emissions control
-    } else if (finalCO <700) {
+    } else if (finalCO < 700) {
       score += 25; // Very good emissions control
     } else if (finalCO < 800) {
       score += 20; // Good emissions control
@@ -524,7 +514,9 @@ function App() {
       score += 0;  // Poor emissions control
     }
     
-    return score
+    console.log("Final calculated score:", score);
+    
+    return score;
   }
 
 
