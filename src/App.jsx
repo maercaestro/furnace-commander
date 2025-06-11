@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import logoFC from './assets/logo_fc.png'
 import furnaceImg from './assets/furnace.png'
 import './App.css'
-import { sqliteClient } from './sqliteClient'
+import { supabase } from './supabaseClient'
 
 // Heat transfer based temperature calculation
 function calculateTemperature(fuelFlow, airFlow, currentTemp, inflowTemp, inflowRate) {
@@ -383,7 +383,7 @@ function App() {
       setLeaderboardLoading(true)
       setLeaderboardError(null)
       
-      const { data, error } = await sqliteClient
+      const { data, error } = await supabase
         .from('leaderboard')
         .select('*')
         .order('score', { ascending: false })
@@ -415,7 +415,7 @@ function App() {
       // Calculate score for database
       const score = calculateNumericScore();
       
-      const { error } = await sqliteClient
+      const { error } = await supabase
         .from('leaderboard')
         .insert([
           {

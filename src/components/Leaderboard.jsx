@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { sqliteClient } from '../sqliteClient'
+import { supabase } from '../supabaseClient'
 
 function Leaderboard() {
   const [leaderboard, setLeaderboard] = useState([])
@@ -18,7 +18,7 @@ function Leaderboard() {
       setLoading(true)
       setError(null)
       
-      const { data, error } = await sqliteClient
+      const { data, error } = await supabase
         .from('leaderboard')
         .select('*')
         .order(sortBy, { ascending: sortOrder === 'asc' })
