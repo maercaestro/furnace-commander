@@ -385,419 +385,417 @@ const AIControlDemo = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#f4e3c3] p-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">AI Furnace Control</h1>
-        <Link 
-          to="/"
-          className="bg-gray-50 text-gray-700 px-4 py-2 rounded hover:bg-gray-700 flex items-center"
-        >
-          <span className="mr-1">←</span> Back to Game
-        </Link>
-      </div>
-      
-      {/* Performance Metrics */}
-      {running || completed ? (
-        <div className="mb-6 p-4 bg-white rounded-lg shadow-md">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-gray-50 p-3 rounded">
-              <div className="text-sm text-gray-600">Target Status</div>
-              <div className="flex items-center">
-                <div className={`text-lg font-bold ${Math.abs(currentTemp - targetTemp) < 3 ? 'text-green-600' : 'text-orange-600'}`}>
-                  {Math.abs(currentTemp - targetTemp) < 3 ? 'On Target' : `${Math.abs(currentTemp - targetTemp).toFixed(1)}°C off`}
-                </div>
-                <div className="text-sm text-gray-500 ml-2">({targetTemp}°C)</div>
-              </div>
-            </div>
-            
-            <div className="bg-gray-50 p-3 rounded">
-              <div className="text-sm text-gray-600">Cost Impact</div>
-              <div className={`text-lg font-bold ${costSavings > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {costSavings > 0 ? '+' : ''}{costSavings.toFixed(2)} $
-              </div>
-            </div>
-            
-            <div className="bg-gray-50 p-3 rounded">
-              <div className="text-sm text-gray-600">CO Emissions</div>
-              <div className={`text-lg font-bold ${cumulativeCO < 300 ? 'text-green-600' : 'text-red-600'}`}>
-                {cumulativeCO.toFixed(1)} kg
-              </div>
-            </div>
-            
-            <div className="bg-gray-50 p-3 rounded">
-              <div className="text-sm text-gray-600">Simulation Time</div>
-              <div className="text-lg font-bold text-gray-800">
-                {formatTime(simulationTime)}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      
-      <div className="p-6 bg-white rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold mb-4 text-gray-800">AI Control Demonstration</h2>
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="max-w-4xl mx-auto p-3 sm:p-8">
+        <header className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-3 sm:p-6 mb-4 sm:mb-8 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+          <h3 className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
+            AI Furnace Control
+          </h3>
+          <button
+            className="!bg-white/20 backdrop-blur-sm !text-white px-3 sm:px-4 py-2 rounded-xl hover:bg-white/30 text-sm sm:text-base border border-white/30"
+            onClick={() => window.location.href = '/'}
+          >
+            ← Back to Game
+          </button>
+        </header>
         
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-            <span className="ml-3">Loading AI model...</span>
-          </div>
-        ) : error ? (
-          <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700">
-            <p>{error}</p>
-            <p className="mt-2 text-sm">Please make sure the ONNX model is correctly placed in the public/models folder.</p>
-          </div>
-        ) : completed ? (
-          <>
-            <div className="mb-6 bg-gray-50 p-4 rounded-lg">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-lg font-semibold">
-                  {Math.abs(currentTemp - targetTemp) < 3 
-                    ? '✅ Target Temperature Reached!' 
-                    : '❌ Failed to Reach Target Temperature'}
-                </div>
-                <div className="flex flex-col items-center">
-                  <div className="text-sm font-medium text-gray-500">Overall Score</div>
-                  <div className="text-4xl font-bold text-blue-600">{score}</div>
-                  <div className={`text-4xl font-bold ${
-                    grade === 'A' ? 'text-green-600' :
-                    grade === 'B' ? 'text-green-500' :
-                    grade === 'C' ? 'text-yellow-500' :
-                    grade === 'D' ? 'text-orange-500' :
-                    'text-red-600'
-                  }`}>
-                    {grade}
-                  </div>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <div className="text-sm text-gray-600 mb-1">Temperature Performance:</div>
-                  <div className="text-gray-600">
-                    Final temperature: {currentTemp.toFixed(1)}°C (Target: {targetTemp}°C)
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 mb-1">O₂ Control:</div>
-                  <div className={`${excessO2 >= optimalO2Min && excessO2 <= optimalO2Max ? 'text-green-600' : 'text-red-600'}`}>
-                    Final O₂: {excessO2.toFixed(2)}% (Optimal: {optimalO2Min}-{optimalO2Max}%)
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 mb-1">Economic Impact:</div>
-                  <div className={`${costSavings > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    Cost savings: {costSavings.toFixed(2)} $
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600 mb-1">Environmental Impact:</div>
-                  <div className={`${cumulativeCO < 300 ? 'text-green-600' : 'text-red-600'}`}>
-                    CO emissions: {cumulativeCO.toFixed(1)} kg
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex justify-end">
-                <button
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                  onClick={() => {
-                    setRunning(true);
-                    setCompleted(false);
-                  }}
-                >
-                  Try Again
-                </button>
-              </div>
-            </div>
-            
-            <div className="mt-6">
-              <h3 className="font-bold text-lg mb-2">Performance History</h3>
-              <div className="h-64 bg-white p-2 border rounded">
-                {tempHistory.length > 1 && (
-                  <Line 
-                    data={{
-                      labels: Array(tempHistory.length).fill(''),
-                      datasets: [
-                        {
-                          label: 'Temperature',
-                          data: tempHistory,
-                          borderColor: 'rgb(255, 99, 132)',
-                          tension: 0.1,
-                          yAxisID: 'y'
-                        },
-                        {
-                          label: 'Excess O₂',
-                          data: o2History,
-                          borderColor: 'rgb(54, 162, 235)',
-                          tension: 0.1,
-                          yAxisID: 'y1'
-                        },
-                        // Add inlet condition tracking
-                        {
-                          label: 'Inflow Temp (scaled)',
-                          data: tempHistory.map((_, i) => i < inflowTempHistory.length ? 
-                            380 + ((inflowTempHistory[i] - 100) / 100) * 40 : null),
-                          borderColor: 'rgba(75, 192, 192, 0.5)',
-                          borderDash: [5, 5],
-                          tension: 0.1,
-                          yAxisID: 'y'
-                        }
-                      ]
-                    }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          type: 'linear',
-                          display: true,
-                          position: 'left',
-                          title: {
-                            display: true,
-                            text: 'Temperature (°C)'
-                          },
-                          min: 380,
-                          max: 500
-                        },
-                        y1: {
-                          type: 'linear',
-                          display: true,
-                          position: 'right',
-                          title: {
-                            display: true,
-                            text: 'Excess O₂ (%)'
-                          },
-                          min: 0,
-                          max: 5,
-                          grid: {
-                            drawOnChartArea: false
-                          }
-                        }
-                      },
-                      animation: {
-                        duration: 0
-                      }
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <button
-                  className={`px-4 py-2 rounded ${running ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-gray-700`}
-                  onClick={() => setRunning(!running)}
-                >
-                  {running ? 'Stop Simulation' : 'Start AI Control'}
-                </button>
-              </div>
-              
-              <div className="flex items-center space-x-4">
-                <div>
-                  <label className="block text-sm text-gray-600">Target Temperature</label>
-                  <input 
-                    type="range" 
-                    min="420" 
-                    max="480" 
-                    step="5"
-                    value={targetTemp} 
-                    onChange={(e) => setTargetTemp(Number(e.target.value))}
-                    className="w-32" 
-                  />
-                  <span className="ml-2">{targetTemp}°C</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-bold text-lg mb-2">Process Values</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-gray-500">Current Temperature</div>
-                    <div className="text-xl font-bold">{Math.round(currentTemp)}°C</div>
-                    <div className="text-sm text-gray-500">Starting at 400°C</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500">Excess O₂</div>
-                    <div className={`text-xl font-bold ${excessO2 >= 1.5 && excessO2 <= 2.5 ? 'text-green-600' : 'text-red-600'}`}>
-                      {excessO2.toFixed(2)}%
-                    </div>
-                    <div className="text-sm text-gray-500">Optimal: 1.5-2.5%</div>
-                  </div>
-                  {/* Add these new display values */}
-                  <div>
-                    <div className="text-sm text-gray-500">Inflow Temperature</div>
-                    <div className="text-xl font-bold">{Math.round(inflowTemp)}°C</div>
-                    <div className="text-sm text-gray-500">Varies: 100-200°C</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500">Inflow Rate</div>
-                    <div className="text-xl font-bold">{Math.round(inflowRate)} units/h</div>
-                    <div className="text-sm text-gray-500">Varies: 50-150 units/h</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-bold text-lg mb-2">AI Controller Status</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Model:</span>
-                    <span className="font-medium">LiquidNN</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Status:</span>
-                    <span className="font-medium text-green-600">{running ? 'Controlling' : 'Ready'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Control Goal:</span>
-                    <span className="font-medium">Optimal O₂ (1.5-2.5%)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Challenge:</span>
-                    <span className="font-medium">400°C → {targetTemp}°C</span>
-                  </div>
-                </div>
-                
-                {running && lastPrediction && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <h4 className="font-semibold text-sm mb-2 text-blue-600">AI Predictions</h4>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <span className="text-gray-600">Next Temp:</span>
-                        <span className="font-medium ml-1">{lastPrediction.temp.toFixed(1)}°C</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Next O₂:</span>
-                        <span className="font-medium ml-1">{lastPrediction.o2.toFixed(2)}%</span>
+        <main>
+          <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl p-4 sm:p-8 mb-6 text-white">
+            {/* Modern Performance Metrics */}
+            {running || completed ? (
+              <div className="mb-4 sm:mb-6 bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-3 sm:p-4 shadow-2xl">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="bg-white/10 backdrop-blur-sm p-2 sm:p-3 rounded-xl border border-white/20">
+                    <div className="text-xs sm:text-sm text-gray-300">🎯 Target Status</div>
+                    <div className="flex items-center">
+                      <div className={`text-sm sm:text-lg font-bold ${Math.abs(currentTemp - targetTemp) < 3 ? 'text-green-300' : 'text-orange-300'}`}>
+                        {Math.abs(currentTemp - targetTemp) < 3 ? 'On Target' : `${Math.abs(currentTemp - targetTemp).toFixed(1)}°C off`}
                       </div>
                     </div>
                   </div>
-                )}
+                  
+                  <div className="bg-white/10 backdrop-blur-sm p-2 sm:p-3 rounded-xl border border-white/20">
+                    <div className="text-xs sm:text-sm text-gray-300">💰 Cost Impact</div>
+                    <div className={`text-sm sm:text-lg font-bold ${costSavings > 0 ? 'text-green-300' : 'text-red-300'}`}>
+                      {costSavings > 0 ? '+' : ''}${costSavings.toFixed(1)}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white/10 backdrop-blur-sm p-2 sm:p-3 rounded-xl border border-white/20">
+                    <div className="text-xs sm:text-sm text-gray-300">☠️ CO Emissions</div>
+                    <div className={`text-sm sm:text-lg font-bold ${cumulativeCO < 300 ? 'text-green-300' : 'text-red-300'}`}>
+                      {cumulativeCO.toFixed(0)} kg
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white/10 backdrop-blur-sm p-2 sm:p-3 rounded-xl border border-white/20">
+                    <div className="text-xs sm:text-sm text-gray-300">⏱️ Time</div>
+                    <div className="text-sm sm:text-lg font-bold text-white">
+                      {formatTime(simulationTime)}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : null}
             
-            {/* AI Decision Process Display */}
-            {running && aiDecisionHistory.length > 0 && (
-              <div className="mt-6">
-                <h3 className="font-bold text-lg mb-2">AI Decision Process</h3>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  {(() => {
-                    const latestDecision = aiDecisionHistory[aiDecisionHistory.length - 1];
-                    return (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <h4 className="font-semibold text-sm mb-2 text-blue-600">Current Analysis</h4>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Temp Error:</span>
-                              <span className={`font-medium ${Math.abs(latestDecision.reasoning.tempError) < 5 ? 'text-green-600' : 'text-orange-600'}`}>
-                                {latestDecision.reasoning.tempError > 0 ? '+' : ''}{latestDecision.reasoning.tempError.toFixed(1)}°C
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Predicted Error:</span>
-                              <span className={`font-medium ${Math.abs(latestDecision.reasoning.predictedTempError) < 5 ? 'text-green-600' : 'text-orange-600'}`}>
-                                {latestDecision.reasoning.predictedTempError > 0 ? '+' : ''}{latestDecision.reasoning.predictedTempError.toFixed(1)}°C
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">O₂ Error:</span>
-                              <span className={`font-medium ${Math.abs(latestDecision.reasoning.o2Error) < 0.3 ? 'text-green-600' : 'text-orange-600'}`}>
-                                {latestDecision.reasoning.o2Error > 0 ? '+' : ''}{latestDecision.reasoning.o2Error.toFixed(2)}%
-                              </span>
-                            </div>
-                          </div>
+            <div className="p-6 bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl">
+              <h2 className="text-2xl font-bold mb-4 bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">AI Control Demonstration</h2>
+              
+              {loading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                  <span className="ml-3">Loading AI model...</span>
+                </div>
+              ) : error ? (
+                <div className="p-4 bg-red-500/20 border-l-4 border-red-500 text-red-100 backdrop-blur-sm rounded-lg">
+                  <p>{error}</p>
+                  <p className="mt-2 text-sm">Please make sure the ONNX model is correctly placed in the public/models folder.</p>
+                </div>
+              ) : completed ? (
+                <>
+                  <div className="mb-6 bg-white/10 backdrop-blur-sm border border-white/20 p-4 rounded-lg">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="text-lg font-semibold text-white">
+                        {Math.abs(currentTemp - targetTemp) < 3 
+                          ? '✅ Target Temperature Reached!' 
+                          : '❌ Failed to Reach Target Temperature'}
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <div className="text-sm font-medium text-gray-300">Overall Score</div>
+                        <div className="text-4xl font-bold text-blue-300">{score}</div>
+                        <div className={`text-4xl font-bold ${
+                          grade === 'A' ? 'text-green-300' :
+                          grade === 'B' ? 'text-green-400' :
+                          grade === 'C' ? 'text-yellow-300' :
+                          grade === 'D' ? 'text-orange-300' :
+                          'text-red-300'
+                        }`}>
+                          {grade}
                         </div>
-                        
-                        <div>
-                          <h4 className="font-semibold text-sm mb-2 text-green-600">AI Actions</h4>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Fuel Adjustment:</span>
-                              <span className={`font-medium ${latestDecision.reasoning.fuelChange > 0 ? 'text-red-600' : latestDecision.reasoning.fuelChange < 0 ? 'text-blue-600' : 'text-gray-600'}`}>
-                                {latestDecision.reasoning.fuelChange > 0 ? '+' : ''}{latestDecision.reasoning.fuelChange.toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">AFR Adjustment:</span>
-                              <span className={`font-medium ${latestDecision.reasoning.afrChange > 0 ? 'text-blue-600' : latestDecision.reasoning.afrChange < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                                {latestDecision.reasoning.afrChange > 0 ? '+' : ''}{latestDecision.reasoning.afrChange.toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Strategy:</span>
-                              <span className="font-medium text-gray-800">
-                                {Math.abs(latestDecision.reasoning.predictedTempError) > 10 
-                                  ? (latestDecision.reasoning.predictedTempError > 0 ? 'Heat Up' : 'Cool Down')
-                                  : 'Fine-tune'
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <div className="text-sm text-gray-300 mb-1">Temperature Performance:</div>
+                        <div className="text-gray-200">
+                          Final temperature: {currentTemp.toFixed(1)}°C (Target: {targetTemp}°C)
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-300 mb-1">O₂ Control:</div>
+                        <div className={`${excessO2 >= optimalO2Min && excessO2 <= optimalO2Max ? 'text-green-300' : 'text-red-300'}`}>
+                          Final O₂: {excessO2.toFixed(2)}% (Optimal: {optimalO2Min}-{optimalO2Max}%)
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-300 mb-1">Economic Impact:</div>
+                        <div className={`${costSavings > 0 ? 'text-green-300' : 'text-red-300'}`}>
+                          Cost savings: {costSavings.toFixed(2)} $
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-300 mb-1">Environmental Impact:</div>
+                        <div className={`${cumulativeCO < 300 ? 'text-green-300' : 'text-red-300'}`}>
+                          CO emissions: {cumulativeCO.toFixed(1)} kg
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end">
+                      <button
+                        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                        onClick={() => {
+                          setRunning(true);
+                          setCompleted(false);
+                        }}
+                      >
+                        Try Again
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6">
+                    <h3 className="font-bold text-lg mb-2">Performance History</h3>
+                    <div className="h-64 bg-white p-2 border rounded">
+                      {tempHistory.length > 1 && (
+                        <Line 
+                          data={{
+                            labels: Array(tempHistory.length).fill(''),
+                            datasets: [
+                              {
+                                label: 'Temperature',
+                                data: tempHistory,
+                                borderColor: 'rgb(255, 99, 132)',
+                                tension: 0.1,
+                                yAxisID: 'y'
+                              },
+                              {
+                                label: 'Excess O₂',
+                                data: o2History,
+                                borderColor: 'rgb(54, 162, 235)',
+                                tension: 0.1,
+                                yAxisID: 'y1'
+                              },
+                              // Add inlet condition tracking
+                              {
+                                label: 'Inflow Temp (scaled)',
+                                data: tempHistory.map((_, i) => i < inflowTempHistory.length ? 
+                                  380 + ((inflowTempHistory[i] - 100) / 100) * 40 : null),
+                                borderColor: 'rgba(75, 192, 192, 0.5)',
+                                borderDash: [5, 5],
+                                tension: 0.1,
+                                yAxisID: 'y'
+                              }
+                            ]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                              y: {
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                title: {
+                                  display: true,
+                                  text: 'Temperature (°C)'
+                                },
+                                min: 380,
+                                max: 500
+                              },
+                              y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                title: {
+                                  display: true,
+                                  text: 'Excess O₂ (%)'
+                                },
+                                min: 0,
+                                max: 5,
+                                grid: {
+                                  drawOnChartArea: false
                                 }
-                              </span>
+                              }
+                            },
+                            animation: {
+                              duration: 0
+                            }
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mb-6 flex items-center justify-between">
+                    <div>
+                      <button
+                        className={`px-4 py-2 rounded ${running ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-gray-700`}
+                        onClick={() => setRunning(!running)}
+                      >
+                        {running ? 'Stop Simulation' : 'Start AI Control'}
+                      </button>
+                    </div>
+                    
+                    <div className="flex items-center space-x-4">
+                      <div>
+                        <label className="block text-sm text-white">Target Temperature</label>
+                        <input 
+                          type="range" 
+                          min="420" 
+                          max="480" 
+                          step="5"
+                          value={targetTemp} 
+                          onChange={(e) => setTargetTemp(Number(e.target.value))}
+                          className="w-32" 
+                        />
+                        <span className="ml-2">{targetTemp}°C</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white/10 backdrop-blur-sm border border-white/20 p-4 rounded-lg">
+                      <h3 className="font-bold text-lg mb-2 text-white">Process Values</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm text-gray-300">Current Temperature</div>
+                          <div className="text-xl font-bold text-orange-300">{Math.round(currentTemp)}°C</div>
+                          <div className="text-sm text-gray-400">Starting at 400°C</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-300">Excess O₂</div>
+                          <div className={`text-xl font-bold ${excessO2 >= 1.5 && excessO2 <= 2.5 ? 'text-green-300' : 'text-red-300'}`}>
+                            {excessO2.toFixed(2)}%
+                          </div>
+                          <div className="text-sm text-gray-400">Optimal: 1.5-2.5%</div>
+                        </div>
+                        {/* Add these new display values */}
+                        <div>
+                          <div className="text-sm text-gray-300">Inflow Temperature</div>
+                          <div className="text-xl font-bold text-blue-300">{Math.round(inflowTemp)}°C</div>
+                          <div className="text-sm text-gray-400">Varies: 100-200°C</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-300">Inflow Rate</div>
+                          <div className="text-xl font-bold text-cyan-300">{Math.round(inflowRate)} units/h</div>
+                          <div className="text-sm text-gray-400">Varies: 50-150 units/h</div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white/10 backdrop-blur-sm border border-white/20 p-4 rounded-lg">
+                      <h3 className="font-bold text-lg mb-2 text-white">AI Controller Status</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">Model:</span>
+                          <span className="font-medium text-blue-300">LiquidNN</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">Status:</span>
+                          <span className="font-medium text-green-300">{running ? 'Controlling' : 'Ready'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">Control Goal:</span>
+                          <span className="font-medium text-yellow-300">Optimal O₂ (1.5-2.5%)</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">Challenge:</span>
+                          <span className="font-medium text-orange-300">400°C → {targetTemp}°C</span>
+                        </div>
+                      </div>
+                      
+                      {running && lastPrediction && (
+                        <div className="mt-4 pt-4 border-t border-white/20">
+                          <h4 className="font-semibold text-sm mb-2 text-blue-300">AI Predictions</h4>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <span className="text-gray-300">Next Temp:</span>
+                              <span className="font-medium ml-1 text-orange-300">{lastPrediction.temp.toFixed(1)}°C</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-300">Next O₂:</span>
+                              <span className="font-medium ml-1 text-blue-300">{lastPrediction.o2.toFixed(2)}%</span>
                             </div>
                           </div>
                         </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* AI Decision Process Display */}
+                  {running && aiDecisionHistory.length > 0 && (
+                    <div className="mt-6">
+                      <h3 className="font-bold text-lg mb-2 text-white">AI Decision Process</h3>
+                      <div className="bg-white/10 backdrop-blur-sm border border-white/20 p-4 rounded-lg">
+                        {(() => {
+                          const latestDecision = aiDecisionHistory[aiDecisionHistory.length - 1];
+                          return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <h4 className="font-semibold text-sm mb-2 text-blue-300">Current Analysis</h4>
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-300">Temp Error:</span>
+                                    <span className={`font-medium ${Math.abs(latestDecision.reasoning.tempError) < 5 ? 'text-green-300' : 'text-orange-300'}`}>
+                                      {latestDecision.reasoning.tempError > 0 ? '+' : ''}{latestDecision.reasoning.tempError.toFixed(1)}°C
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-300">Predicted Error:</span>
+                                    <span className={`font-medium ${Math.abs(latestDecision.reasoning.predictedTempError) < 5 ? 'text-green-300' : 'text-orange-300'}`}>
+                                      {latestDecision.reasoning.predictedTempError > 0 ? '+' : ''}{latestDecision.reasoning.predictedTempError.toFixed(1)}°C
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-300">O₂ Error:</span>
+                                    <span className={`font-medium ${Math.abs(latestDecision.reasoning.o2Error) < 0.3 ? 'text-green-300' : 'text-orange-300'}`}>
+                                      {latestDecision.reasoning.o2Error > 0 ? '+' : ''}{latestDecision.reasoning.o2Error.toFixed(2)}%
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <h4 className="font-semibold text-sm mb-2 text-green-300">AI Actions</h4>
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-300">Fuel Adjustment:</span>
+                                    <span className={`font-medium ${latestDecision.reasoning.fuelChange > 0 ? 'text-red-300' : latestDecision.reasoning.fuelChange < 0 ? 'text-blue-300' : 'text-gray-300'}`}>
+                                      {latestDecision.reasoning.fuelChange > 0 ? '+' : ''}{latestDecision.reasoning.fuelChange.toFixed(2)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-300">AFR Adjustment:</span>
+                                    <span className={`font-medium ${latestDecision.reasoning.afrChange > 0 ? 'text-blue-300' : latestDecision.reasoning.afrChange < 0 ? 'text-red-300' : 'text-gray-300'}`}>
+                                      {latestDecision.reasoning.afrChange > 0 ? '+' : ''}{latestDecision.reasoning.afrChange.toFixed(2)}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-300">Strategy:</span>
+                                    <span className="font-medium text-white">
+                                      {Math.abs(latestDecision.reasoning.predictedTempError) > 10 
+                                        ? (latestDecision.reasoning.predictedTempError > 0 ? 'Heat Up' : 'Cool Down')
+                                        : 'Fine-tune'
+                                      }
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-            
-            <div className="mt-6">
-              <h3 className="font-bold text-lg mb-2">Instructions</h3>
-              <div className="p-4 bg-blue-50 rounded-lg text-gray-700">
-                <p className="mb-2">
-                  This simulation demonstrates how the AI controller can bring the furnace from 
-                  400°C to the target temperature while maintaining optimal O₂ levels.
+                    </div>
+                  )}
+                  
+                  <div className="mt-6">
+                    <h3 className="font-bold text-lg mb-2 text-white">Instructions</h3>
+                    <div className="p-4 bg-blue-500/20 backdrop-blur-sm border border-blue-400/30 rounded-lg text-blue-100">
+                      <p className="mb-2">
+                        This simulation demonstrates how the AI controller can bring the furnace from 
+                        400°C to the target temperature while maintaining optimal O₂ levels.
+                      </p>
+                      <p className="mb-2">
+                        <strong>Challenge:</strong> The inlet temperature (100-200°C) and flow rate (50-150 units/h)
+                        vary randomly, making temperature control more difficult. The AI must adapt
+                        to these changing conditions.
+                      </p>
+                      <ol className="list-decimal pl-5 space-y-1">
+                        <li>Click "Start AI Control" to begin the simulation</li>
+                        <li>Watch as the AI controller adjusts fuel and air to reach {targetTemp}°C</li>
+                        <li>The simulation runs for up to 10 minutes or until temperature stabilizes</li>
+                        <li>Your final score will be based on temperature accuracy, O₂ control, cost savings, and emissions</li>
+                      </ol>
+                    </div>
+                  </div>
+                </>
+              )}
+              
+              <div className="mt-6">
+                <h3 className="font-bold text-lg mb-2 text-white">How It Works</h3>
+                <p className="text-gray-200">
+                  This demonstration shows how your trained LiquidNN neural network model directly controls
+                  the furnace system. The AI controller operates in real-time by:
                 </p>
-                <p className="mb-2">
-                  <strong>Challenge:</strong> The inlet temperature (100-200°C) and flow rate (50-150 units/h)
-                  vary randomly, making temperature control more difficult. The AI must adapt
-                  to these changing conditions.
+                <ul className="list-disc pl-5 mt-2 space-y-1 text-gray-200">
+                  <li><strong>Predicting Future States:</strong> Uses current conditions to predict temperature and O₂ levels one step ahead</li>
+                  <li><strong>Making Control Decisions:</strong> Adjusts fuel flow based on predicted vs. target temperature errors</li>
+                  <li><strong>Optimizing Air-Fuel Ratio:</strong> Modifies AFR based on predicted O₂ levels to maintain 1.5-2.5% range</li>
+                  <li><strong>Adapting to Disturbances:</strong> Responds to changing inlet conditions (temperature and flow rate)</li>
+                  <li><strong>Balancing Objectives:</strong> Simultaneously optimizes temperature control, emissions, and cost efficiency</li>
+                </ul>
+                <p className="text-gray-200 mt-2">
+                  <strong>Key Difference:</strong> Unlike traditional PID controllers that react to current errors, 
+                  this AI controller uses neural network predictions to make proactive control decisions.
                 </p>
-                <ol className="list-decimal pl-5 space-y-1">
-                  <li>Click "Start AI Control" to begin the simulation</li>
-                  <li>Watch as the AI controller adjusts fuel and air to reach {targetTemp}°C</li>
-                  <li>The simulation runs for up to 10 minutes or until temperature stabilizes</li>
-                  <li>Your final score will be based on temperature accuracy, O₂ control, cost savings, and emissions</li>
-                </ol>
               </div>
             </div>
-          </>
-        )}
-        
-        <div className="mt-6">
-          <h3 className="font-bold text-lg mb-2">How It Works</h3>
-          <p className="text-gray-700">
-            This demonstration shows how your trained LiquidNN neural network model directly controls
-            the furnace system. The AI controller operates in real-time by:
-          </p>
-          <ul className="list-disc pl-5 mt-2 space-y-1 text-gray-700">
-            <li><strong>Predicting Future States:</strong> Uses current conditions to predict temperature and O₂ levels one step ahead</li>
-            <li><strong>Making Control Decisions:</strong> Adjusts fuel flow based on predicted vs. target temperature errors</li>
-            <li><strong>Optimizing Air-Fuel Ratio:</strong> Modifies AFR based on predicted O₂ levels to maintain 1.5-2.5% range</li>
-            <li><strong>Adapting to Disturbances:</strong> Responds to changing inlet conditions (temperature and flow rate)</li>
-            <li><strong>Balancing Objectives:</strong> Simultaneously optimizes temperature control, emissions, and cost efficiency</li>
-          </ul>
-          <p className="text-gray-700 mt-2">
-            <strong>Key Difference:</strong> Unlike traditional PID controllers that react to current errors, 
-            this AI controller uses neural network predictions to make proactive control decisions.
-          </p>
-        </div>
-      </div>
-      
-      <div className="mt-8 text-center">
-        <Link 
-          to="/"
-          className="bg-gray-50 text-gray-700 px-6 py-2 rounded hover:bg-gray-700 inline-block"
-        >
-          Return to Main Game
-        </Link>
+          </div>
+        </main>
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import logoFC from './assets/logo_fc.png'
 import furnaceImg from './assets/furnace.png'
 import './App.css'
-import { supabase } from './supabaseClient'
+import { sqliteClient } from './sqliteClient'
 
 // Heat transfer based temperature calculation
 function calculateTemperature(fuelFlow, airFlow, currentTemp, inflowTemp, inflowRate) {
@@ -99,6 +99,10 @@ function App() {
 
   // Add a new state for feedback
   const [playerFeedback, setPlayerFeedback] = useState('');
+  
+  // Add state for mobile UI toggles
+  const [showPerformanceCharts, setShowPerformanceCharts] = useState(false);
+  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
 
   // The optimal excess O2 range
   const optimalO2Min = 1.5
@@ -379,14 +383,14 @@ function App() {
       setLeaderboardLoading(true)
       setLeaderboardError(null)
       
-      const { data, error } = await supabase
+      const { data, error } = await sqliteClient
         .from('leaderboard')
         .select('*')
         .order('score', { ascending: false })
         .limit(10)
       
       if (error) {
-        throw error
+        throw new Error(error)
       }
       
       setLeaderboard(data || [])
@@ -411,7 +415,7 @@ function App() {
       // Calculate score for database
       const score = calculateNumericScore();
       
-      const { error } = await supabase
+      const { error } = await sqliteClient
         .from('leaderboard')
         .insert([
           {
@@ -428,7 +432,7 @@ function App() {
         ]);
         
       if (error) {
-        throw error;
+        throw new Error(error);
       }
       
       // After saving, refresh the leaderboard
@@ -458,6 +462,22 @@ function App() {
     setShowGameResults(true);
     setLastAction("Game stopped by user. Scores recorded.");
   };
+
+  // Handle game completion
+  const handleGameComplete = () => {
+    setGameActive(false);
+    setGameCompleted(true);
+    
+    // Take snapshots of current values
+    setFinalTemp(currentTemp);
+    setFinalO2(excessO2);
+    setFinalCostSavings(costSavings);
+    setFinalCO(cumulativeCO);
+    setFinalCO2(cumulativeCO2);
+    setFinalTimeUsed(300 - timeRemaining);
+    
+    setShowGameResults(true);
+  }
 
   // Update the calculateGrade function to use final snapshots
   const calculateNumericScore = () => {
@@ -543,151 +563,162 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#f4e3c3]">
-      <div className="max-w-6xl mx-auto p-8">
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="max-w-6xl mx-auto p-3 sm:p-8">
         {/* Instructions Modal */}
         {showInstructions && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-xl w-full">
-              <h2 className="text-2xl font-bold mb-4 text-gray-800">Furnace Challenge Instructions</h2>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white/10 backdrop-blur-lg border border-white/20 p-4 sm:p-6 rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-white">🔥 Furnace Challenge</h2>
               
-              <div className="space-y-4 mb-6">
-                <div>
-                  <h3 className="font-bold text-lg text-gray-700 mb-2">Objectives:</h3>
-                  <ul className="list-disc pl-5 space-y-2 text-gray-600">
-                    <li>Bring the furnace temperature to the target <span className="font-medium">{targetTemp}°C</span> within 5 minutes</li>
-                    <li>Maintain excess O₂ levels between <span className="font-medium">1.5-2.5%</span> for optimal combustion</li>
-                    <li>Keep cost impact positive by maintaining optimal excess O₂</li>
-                    <li>Minimize CO emissions by avoiding incomplete combustion</li>
+              <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-white/20">
+                  <h3 className="font-bold text-base sm:text-lg text-blue-200 mb-2">🎯 Objectives:</h3>
+                  <ul className="list-disc pl-4 sm:pl-5 space-y-1 sm:space-y-2 text-sm sm:text-base text-gray-200">
+                    <li>Reach target <span className="font-medium text-yellow-300">{targetTemp}°C</span> within 5 minutes</li>
+                    <li>Maintain O₂ levels <span className="font-medium text-green-300">1.5-2.5%</span> for optimal combustion</li>
+                    <li>Keep cost impact positive</li>
+                    <li>Minimize CO emissions</li>
                   </ul>
                 </div>
                 
-                <div>
-                  <h3 className="font-bold text-lg text-gray-700 mb-2">Tips:</h3>
-                  <ul className="list-disc pl-5 space-y-2 text-gray-600">
-                    <li>If temperature is rising too slowly, increase fuel flow</li>
-                    <li>When adjusting fuel flow, make sure to adjust the air/fuel ratio to maintain optimal excess O₂</li>
-                    <li>Watch for smoke - it indicates poor combustion efficiency</li>
-                    <li>The optimal air/fuel ratio is theoretically at 14.7, but may need adjustment based on conditions</li>
-                    <li>CO emissions increase rapidly when excess O₂ is too low</li>
-                    <li>High excess O₂ wastes energy and reduces efficiency</li>
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-white/20">
+                  <h3 className="font-bold text-base sm:text-lg text-green-200 mb-2">💡 Tips:</h3>
+                  <ul className="list-disc pl-4 sm:pl-5 space-y-1 sm:space-y-2 text-sm sm:text-base text-gray-200">
+                    <li>Low temperature? Increase fuel flow</li>
+                    <li>Adjust air/fuel ratio to maintain optimal O₂</li>
+                    <li>Watch for smoke - indicates poor efficiency</li>
+                    <li>Optimal air/fuel ratio is around 14.7</li>
                   </ul>
-                </div>
-                
-                <div className="p-3 bg-blue-50 text-blue-700 rounded-lg">
-                  <p className="font-medium">Remember:</p>
-                  <p className="text-sm">The goal is to balance temperature control, fuel efficiency, and emissions. Your performance in all three areas will determine your final grade.</p>
                 </div>
               </div>
               
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-0">
                 <button
-                  className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
+                  className="!bg-white/20 backdrop-blur-sm !text-white px-3 sm:px-4 py-2 rounded-xl hover:bg-white/30 text-sm sm:text-base order-2 sm:order-1 border border-white/30"
                   onClick={() => setShowInstructions(false)}
                 >
                   Cancel
                 </button>
                 <button
-                  className="bg-green-600 text-gray-600 px-4 py-2 rounded hover:bg-green-700"
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 sm:px-4 py-2 rounded-xl hover:from-green-600 hover:to-emerald-700 text-sm sm:text-base order-1 sm:order-2 shadow-lg"
                   onClick={() => {
                     setShowInstructions(false)
                     startGame()
                   }}
                 >
-                  Start Challenge
+                  🚀 Start Challenge
                 </button>
               </div>
             </div>
           </div>
         )}
         
-        <header className="flex items-center justify-between mb-8">
-          <div className="flex items-center">
-            <img src={logoFC} className="h-30 mr-4" alt="Furnace Commander logo" />
-            <h2 className="text-3xl font-bold text-gray-800">Furnace Simulator</h2>
-          </div>
-          
-          {/* Game Controls */}
-          <div className="flex items-center gap-4">
-            {!gameActive && !gameCompleted && (
-              <>
-                <button 
-                  onClick={handleStartClick}
-                  className="bg-gray-50 text-gray-700 px-4 py-2 rounded hover:bg-green-700"
-                >
-                  Start Challenge
-                </button>
-                <Link 
-                  to="/leaderboard"
-                  className="bg-gray-50 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
-                >
-                  View Leaderboard
-                </Link>
-                <Link 
-                  to="/ai-demo"
-                  className="bg-gray-50 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
-                >
-                  AI Control Demo
-                </Link>
-              </>
-            )}
-            {gameActive && (
-              <button
-                onClick={stopGame}
-                className="bg-red-600 text-gray-700 px-4 py-2 rounded hover:bg-red-700"
-              >
-                Stop Game
-              </button>
-            )}
-            {(gameActive || gameCompleted) && (
-              <div className="flex flex-col items-end">
-                <div className={`text-xl font-bold ${timeRemaining < 60 ? 'text-red-600' : 'text-gray-800'}`}>
-                  {formatTime(timeRemaining)}
-                </div>
-                <div className="text-sm text-gray-600">Time Remaining</div>
+        {/* Modern Glassmorphism Header */}
+        <header className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-3 sm:p-6 mb-4 sm:mb-8 shadow-2xl">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg p-2">
+                <img 
+                  src={logoFC} 
+                  alt="Furnace Commander" 
+                  className="w-full h-full object-contain"
+                />
               </div>
-            )}
+              <div>
+                <div className="hidden sm:block">
+                  <h3 className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
+                    Furnace Commander
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-300">Industrial Process Control</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Modern Action Buttons */}
+            <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+              {!gameActive && !gameCompleted && (
+                <>
+                  <button 
+                    onClick={handleStartClick}
+                    className="flex-1 sm:flex-none bg-gradient-to-r from-green-500 to-emerald-600 !text-white px-3 sm:px-6 py-2 sm:py-3 rounded-xl hover:from-green-600 hover:to-emerald-700 text-sm sm:text-base font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
+                  >
+                    <span className="sm:hidden">🚀 Start</span>
+                    <span className="hidden sm:inline">🚀 Start Challenge</span>
+                  </button>
+                  <button 
+                    onClick={() => window.location.href = '/leaderboard'}
+                    className="flex-1 sm:flex-none !bg-white/20 backdrop-blur-sm !text-white px-3 sm:px-6 py-2 sm:py-3 rounded-xl hover:bg-white/30 text-sm sm:text-base font-semibold border border-white/30 transform hover:scale-105 transition-all duration-200"
+                  >
+                    <span className="sm:hidden">🏆 Scores</span>
+                    <span className="hidden sm:inline">🏆 Leaderboard</span>
+                  </button>
+                  <button 
+                    onClick={() => window.location.href = '/ai-demo'}
+                    className="flex-1 sm:flex-none bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-xl hover:from-purple-600 hover:to-indigo-700 text-sm sm:text-base font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
+                  >
+                    <span className="sm:hidden">🤖 AI</span>
+                    <span className="hidden sm:inline">🤖 AI Demo</span>
+                  </button>
+                </>
+              )}
+              {gameActive && (
+                <button
+                  onClick={stopGame}
+                  className="flex-1 sm:flex-none bg-gradient-to-r from-red-500 to-pink-600 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-xl hover:from-red-600 hover:to-pink-700 text-sm sm:text-base font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
+                >
+                  ⏹️ Stop
+                </button>
+              )}
+              {(gameActive || gameCompleted) && (
+                <div className="bg-white/20 backdrop-blur-sm rounded-xl px-3 sm:px-4 py-2 sm:py-3 border border-white/30">
+                  <div className={`text-lg sm:text-xl font-bold ${timeRemaining < 60 ? 'text-red-300' : 'text-white'}`}>
+                    ⏱️ {formatTime(timeRemaining)}
+                  </div>
+                  <div className="text-xs text-gray-300 hidden sm:block text-center">remaining</div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         
         {lastAction && (
-          <div className="mb-4 p-2 bg-blue-50 border-l-4 border-blue-400 text-blue-700">
-            {lastAction}
+          <div className="mb-4 p-3 bg-blue-500/20 backdrop-blur-sm border border-blue-400/30 rounded-xl text-blue-100 shadow-lg">
+            💡 {lastAction}
           </div>
         )}
         
-        {/* Game status panel */}
+        {/* Modern Game Status Panel */}
         {(gameActive || gameCompleted) && (
-          <div className="mb-6 p-4 bg-white rounded-lg shadow-md">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-gray-50 p-3 rounded">
-                <div className="text-sm text-gray-600">Target Status</div>
+          <div className="mb-4 sm:mb-6 bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-3 sm:p-4 shadow-2xl">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="bg-white/10 backdrop-blur-sm p-2 sm:p-3 rounded-xl border border-white/20">
+                <div className="text-xs sm:text-sm text-gray-300">🎯 Target Status</div>
                 <div className="flex items-center">
-                  <div className={`text-lg font-bold ${Math.abs(currentTemp - targetTemp) < 10 ? 'text-green-600' : 'text-orange-600'}`}>
+                  <div className={`text-sm sm:text-lg font-bold ${Math.abs(currentTemp - targetTemp) < 10 ? 'text-green-300' : 'text-orange-300'}`}>
                     {Math.abs(currentTemp - targetTemp) < 10 ? 'On Target' : `${Math.abs(currentTemp - targetTemp)}°C off`}
                   </div>
-                  <div className="text-sm text-gray-500 ml-2">({targetTemp}°C)</div>
                 </div>
               </div>
               
-              <div className="bg-gray-50 p-3 rounded">
-                <div className="text-sm text-gray-600">Cost Impact</div>
-                <div className={`text-lg font-bold ${costSavings > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {costSavings > 0 ? '+' : ''}{costSavings.toFixed(2)} $
+              <div className="bg-white/10 backdrop-blur-sm p-2 sm:p-3 rounded-xl border border-white/20">
+                <div className="text-xs sm:text-sm text-gray-300">💰 Cost Impact</div>
+                <div className={`text-sm sm:text-lg font-bold ${costSavings > 0 ? 'text-green-300' : 'text-red-300'}`}>
+                  {costSavings > 0 ? '+' : ''}${costSavings.toFixed(1)}
                 </div>
               </div>
               
-              <div className="bg-gray-50 p-3 rounded">
-                <div className="text-sm text-gray-600">CO Emissions</div>
-                <div className={`text-lg font-bold ${cumulativeCO < 300 ? 'text-green-600' : 'text-red-600'}`}>
-                  {cumulativeCO.toFixed(1)} kg
+              <div className="bg-white/10 backdrop-blur-sm p-2 sm:p-3 rounded-xl border border-white/20">
+                <div className="text-xs sm:text-sm text-gray-300">☠️ CO Emissions</div>
+                <div className={`text-sm sm:text-lg font-bold ${cumulativeCO < 300 ? 'text-green-300' : 'text-red-300'}`}>
+                  {cumulativeCO.toFixed(0)} kg
                 </div>
               </div>
               
-              <div className="bg-gray-50 p-3 rounded">
-                <div className="text-sm text-gray-600">CO₂ Emissions</div>
-                <div className="text-lg font-bold text-gray-800">
-                  {cumulativeCO2.toFixed(1)} kg
+              <div className="bg-white/10 backdrop-blur-sm p-2 sm:p-3 rounded-xl border border-white/20">
+                <div className="text-xs sm:text-sm text-gray-300">🌍 CO₂ Emissions</div>
+                <div className="text-sm sm:text-lg font-bold text-gray-200">
+                  {cumulativeCO2.toFixed(0)} kg
                 </div>
               </div>
             </div>
@@ -696,50 +727,50 @@ function App() {
         
         {/* Game results modal */}
         {showGameResults && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg w-full">
-              <h2 className="text-2xl font-bold mb-4">Challenge Results</h2>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white/10 backdrop-blur-lg border border-white/20 p-4 sm:p-6 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4 text-white">🎉 Challenge Results</h2>
               
               {/* Add grade display at the top */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-lg font-semibold">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3">
+                <div className="text-base sm:text-lg font-semibold text-white">
                   {gameCompleted && Math.abs(finalTemp - targetTemp) < 10 
                     ? '✅ Target Temperature Reached!' 
                     : '❌ Failed to Reach Target Temperature'}
                 </div>
                 <div className="flex flex-col items-center">
-                  <div className="text-sm font-medium text-gray-500">Overall Grade</div>
-                  <div className={`text-4xl font-bold ${
-                    calculateGrade() === 'A' ? 'text-green-600' :
-                    calculateGrade() === 'B' ? 'text-green-500' :
-                    calculateGrade() === 'C' ? 'text-yellow-500' :
-                    calculateGrade() === 'D' ? 'text-orange-500' :
-                    'text-red-600'
+                  <div className="text-xs sm:text-sm font-medium text-gray-300">Overall Grade</div>
+                  <div className={`text-3xl sm:text-4xl font-bold ${
+                    calculateGrade() === 'A' ? 'text-green-300' :
+                    calculateGrade() === 'B' ? 'text-green-400' :
+                    calculateGrade() === 'C' ? 'text-yellow-300' :
+                    calculateGrade() === 'D' ? 'text-orange-300' :
+                    'text-red-300'
                   }`}>
                     {calculateGrade()}
                   </div>
                 </div>
               </div>
               
-              <div className="mb-6">
-                <div className="text-gray-600">
-                  Final temperature: {finalTemp}°C (Target: {targetTemp}°C)
+              <div className="mb-4 sm:mb-6 bg-white/5 backdrop-blur-sm rounded-xl p-3 border border-white/10">
+                <div className="text-sm sm:text-base text-gray-200">
+                  Final temperature: <span className="font-medium text-white">{finalTemp}°C</span> (Target: <span className="text-yellow-300">{targetTemp}°C</span>)
                 </div>
-                <div className="text-gray-600">
-                  Time used: {formatTime(finalTimeUsed)} {timeRemaining > 0 && `(${formatTime(timeRemaining)} remaining)`}
+                <div className="text-sm sm:text-base text-gray-200">
+                  Time used: <span className="font-medium text-white">{formatTime(finalTimeUsed)}</span> {timeRemaining > 0 && `(${formatTime(timeRemaining)} remaining)`}
                 </div>
               </div>
               
               
               {/* Name input and feedback for leaderboard */}
               {showNameInput ? (
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="font-semibold text-lg mb-2">Add Your Score to the Leaderboard</h3>
-                  <div className="space-y-4">
+                <div className="mb-4 sm:mb-6 bg-white/10 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-white/20">
+                  <h3 className="font-semibold text-base sm:text-lg mb-2 text-white">Add Your Score to the Leaderboard</h3>
+                  <div className="space-y-3 sm:space-y-4">
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded"
+                        className="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 text-sm sm:text-base backdrop-blur-sm"
                         placeholder="Enter your name"
                         value={playerName}
                         onChange={(e) => setPlayerName(e.target.value)}
@@ -749,11 +780,11 @@ function App() {
                     </div>
                     
                     <div>
-                      <label className="block text-sm text-gray-600 mb-1">
+                      <label className="block text-xs sm:text-sm text-gray-300 mb-1">
                         Share your feedback (optional):
                       </label>
                       <textarea
-                        className="w-full px-3 py-2 border border-gray-300 rounded"
+                        className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 text-sm sm:text-base backdrop-blur-sm"
                         placeholder="What did you think about the game? Any suggestions?"
                         value={playerFeedback}
                         onChange={(e) => setPlayerFeedback(e.target.value)}
@@ -765,7 +796,7 @@ function App() {
                     
                     <div className="flex justify-end">
                       <button
-                        className="bg-blue-600 text-gray-700 px-4 py-2 rounded hover:bg-blue-700 disabled:bg-blue-300"
+                        className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 sm:px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 text-sm sm:text-base shadow-lg"
                         onClick={saveScore}
                         disabled={!playerName.trim() || isSubmitting}
                       >
@@ -775,71 +806,73 @@ function App() {
                   </div>
                 </div>
               ) : (
-                <div className="mb-6">
+                <div className="mb-4 sm:mb-6">
                   <button
-                    className="w-full bg-blue-600 text-gray-700 px-4 py-2 rounded hover:bg-blue-700"
+                    className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 sm:px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-700 text-sm sm:text-base shadow-lg"
                     onClick={() => setShowNameInput(true)}
                   >
-                    Add to Leaderboard
+                    🏆 Add to Leaderboard
                   </button>
                 </div>
               )}
               
               {/* Leaderboard display */}
-              <div className="mb-6">
-                <h3 className="font-semibold text-lg mb-2">Top 10 Leaderboard</h3>
+              <div className="mb-4 sm:mb-6">
+                <h3 className="font-semibold text-base sm:text-lg mb-2 text-white">🏆 Top 10 Leaderboard</h3>
                 
                 {leaderboardLoading ? (
-                  <div className="text-center p-4">Loading scores...</div>
+                  <div className="text-center p-4 text-sm sm:text-base text-gray-300">Loading scores...</div>
                 ) : leaderboardError ? (
-                  <div className="text-center p-4 text-red-500">{leaderboardError}</div>
+                  <div className="text-center p-4 text-red-300 text-sm sm:text-base">{leaderboardError}</div>
                 ) : leaderboard.length > 0 ? (
-                  <div className="border rounded overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="py-2 px-4 text-left">#</th>
-                          <th className="py-2 px-4 text-left">Player</th>
-                          <th className="py-2 px-4 text-right">Score</th>
-                          <th className="py-2 px-4 text-center">Grade</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {leaderboard.map((entry, index) => (
-                          <tr key={entry.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-gray-100`}>
-                            <td className="py-2 px-4 text-left">{index + 1}</td>
-                            <td className="py-2 px-4 text-left font-medium">{entry.player_name}</td>
-                            <td className="py-2 px-4 text-right">{entry.score}</td>
-                            <td className="py-2 px-4 text-center">
-                              <span className={`font-bold ${
-                                entry.grade === 'A' ? 'text-green-600' :
-                                entry.grade === 'B' ? 'text-green-500' :
-                                entry.grade === 'C' ? 'text-yellow-500' :
-                                entry.grade === 'D' ? 'text-orange-500' :
-                                'text-red-600'
-                              }`}>
-                                {entry.grade}
-                              </span>
-                            </td>
+                  <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs sm:text-sm min-w-[300px]">
+                        <thead className="bg-white/10 border-b border-white/20">
+                          <tr>
+                            <th className="py-1 sm:py-2 px-2 sm:px-4 text-left text-gray-200">#</th>
+                            <th className="py-1 sm:py-2 px-2 sm:px-4 text-left text-gray-200">Player</th>
+                            <th className="py-1 sm:py-2 px-2 sm:px-4 text-right text-gray-200">Score</th>
+                            <th className="py-1 sm:py-2 px-2 sm:px-4 text-center text-gray-200">Grade</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {leaderboard.map((entry, index) => (
+                            <tr key={entry.id} className={`${index % 2 === 0 ? 'bg-white/5' : 'bg-white/10'} hover:bg-white/20 transition-colors`}>
+                              <td className="py-1 sm:py-2 px-2 sm:px-4 text-left text-gray-300">{index + 1}</td>
+                              <td className="py-1 sm:py-2 px-2 sm:px-4 text-left font-medium truncate max-w-[80px] sm:max-w-none text-white">{entry.player_name}</td>
+                              <td className="py-1 sm:py-2 px-2 sm:px-4 text-right text-gray-200">{entry.score}</td>
+                              <td className="py-1 sm:py-2 px-2 sm:px-4 text-center">
+                                <span className={`font-bold px-1 py-0.5 rounded text-xs ${
+                                  entry.grade === 'A' ? 'bg-green-500/20 text-green-300 border border-green-500/30' :
+                                  entry.grade === 'B' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                                  entry.grade === 'C' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' :
+                                  entry.grade === 'D' ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30' :
+                                  'bg-red-500/20 text-red-300 border border-red-500/30'
+                                }`}>
+                                  {entry.grade}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : (
-                  <div className="text-center p-4 text-gray-500">No scores yet. Be the first!</div>
+                  <div className="text-center p-4 text-gray-300 text-sm sm:text-base bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">No scores yet. Be the first!</div>
                 )}
               </div>
               
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-0">
                 <button
-                  className="bg-blue-600 text-gray-700 px-4 py-2 rounded hover:bg-blue-700"
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 sm:px-4 py-2 rounded-xl hover:from-green-600 hover:to-emerald-700 text-sm sm:text-base order-2 sm:order-1 shadow-lg"
                   onClick={() => startGame()}
                 >
-                  Try Again
+                  🔄 Try Again
                 </button>
                 <button
-                  className="bg-gray-500 text-gray-700 px-4 py-2 rounded hover:bg-gray-600"
+                  className="!bg-white/20 backdrop-blur-sm !text-white px-3 sm:px-4 py-2 rounded-xl hover:bg-white/30 text-sm sm:text-base order-1 sm:order-2 border border-white/30"
                   onClick={() => {
                     setShowGameResults(false)
                     setGameCompleted(false)
@@ -872,25 +905,35 @@ function App() {
           </div>
         )}
         
-        <main className="flex flex-col lg:flex-row gap-8">
-          <div className="flex-grow flex flex-col items-center gap-6">
-            <div className="flex w-full justify-center gap-4">
-              <div className="bg-white p-3 rounded-lg shadow text-center min-w-[140px]">
-                <span className="text-sm text-gray-600">Inflow Temperature:</span>
-                <div className="text-xl font-semibold text-orange-600">{Math.round(inflowTemp)}°C</div>
-              </div>
-              <div className="bg-white p-3 rounded-lg shadow text-center min-w-[140px]">
-                <span className="text-sm text-gray-600">Inflow Rate:</span>
-                <div className="text-xl font-semibold text-orange-600">{Math.round(inflowRate)} units/h</div>
+        <main className="flex flex-col xl:flex-row gap-4 lg:gap-8">
+          <div className="flex-grow flex flex-col items-center gap-4 lg:gap-6">
+            {/* Modern Temperature Metrics - Grid layout on mobile - TOP PRIORITY */}
+            <div className="w-full">
+              {/* Mobile: 1x2 grid (side by side), Desktop: Single row */}
+              <div className="grid grid-cols-2 sm:flex sm:flex-row sm:justify-center gap-3 sm:gap-6">
+                <div className="bg-white/10 backdrop-blur-lg border border-white/20 p-3 sm:p-4 rounded-xl shadow-lg sm:flex-1 sm:min-w-[180px] border-l-4 border-l-orange-400">
+                  <span className="text-xs sm:text-base text-gray-300">🌡️ Temperature</span>
+                  <div className={`text-xl sm:text-3xl font-bold ${Math.abs(currentTemp - targetTemp) < 30 ? 'text-green-300' : 'text-orange-300'}`}>
+                    {currentTemp}°C
+                  </div>
+                  <span className="text-xs text-gray-400">Target: {targetTemp}°C</span>
+                </div>
+                <div className="bg-white/10 backdrop-blur-lg border border-white/20 p-3 sm:p-4 rounded-xl shadow-lg sm:flex-1 sm:min-w-[180px] border-l-4 border-l-blue-400">
+                  <span className="text-xs sm:text-base text-gray-300">💨 Excess O₂</span>
+                  <div className={`text-xl sm:text-3xl font-bold ${isOptimal ? 'text-green-300' : 'text-red-300'}`}>
+                    {excessO2.toFixed(1)}%
+                  </div>
+                  <span className="text-xs text-gray-400">Optimal: {optimalO2Min}-{optimalO2Max}%</span>
+                </div>
               </div>
             </div>
             
-            {/* Interactive furnace visualization */}
-            <div className="relative">
+            {/* Interactive furnace visualization - Hidden on mobile for better UX */}
+            <div className="relative w-full max-w-md mx-auto hidden sm:block">
               <img 
                 src={furnaceImg} 
                 alt="Furnace" 
-                className="max-h-[400px] w-auto rounded-lg shadow-lg"
+                className="w-full h-auto max-h-[300px] sm:max-h-[400px] rounded-lg shadow-lg"
               />
               
               {/* Dynamic flame visualization */}
@@ -924,85 +967,94 @@ function App() {
               </div>
             </div>
             
-            <div className="flex w-full justify-center gap-6 flex-wrap">
-              <div className={`bg-white p-4 rounded-lg shadow flex-1 min-w-[180px] border-l-4 ${getTempColorClass()}`}>
-                <span className="text-gray-600">Current Temperature:</span>
-                <div className={`text-2xl font-bold ${Math.abs(currentTemp - targetTemp) < 30 ? 'text-green-600' : 'text-orange-600'}`}>
-                  {currentTemp}°C
-                </div>
-                <span className="text-xs text-gray-500">Target: {targetTemp}°C</span>
-              </div>
-              <div className={`bg-white p-4 rounded-lg shadow flex-1 min-w-[180px] border-l-4 ${getO2ColorClass()}`}>
-                <span className="text-gray-600">Excess O₂:</span>
-                <div className={`text-2xl font-bold ${isOptimal ? 'text-green-600' : 'text-red-600'}`}>
-                  {excessO2.toFixed(1)}%
-                </div>
-                <span className="text-xs text-gray-500">Optimal: {optimalO2Min}-{optimalO2Max}%</span>
-              </div>
-              <div className={`bg-white p-4 rounded-lg shadow flex-1 min-w-[180px] border-l-4 ${flowRateOptimal ? 'border-green-500' : 'border-red-500'}`}>
-                <span className="text-gray-600">Current Flow Rate:</span>
-                <div className={`text-2xl font-bold ${flowRateOptimal ? 'text-green-600' : 'text-red-600'}`}>
-                  {Math.round(inflowRate)} units/h
-                </div>
-                <span className="text-xs text-gray-500">Target: {targetFlowRate} ±15 units/h</span>
-              </div>
-            </div>
-            
-            {/* Performance history charts */}
-            <div className="w-full bg-white p-4 rounded-lg shadow">
-              <h3 className="text-lg font-semibold mb-2 text-gray-700">Performance History</h3>
-              <div className="flex gap-4 h-32">
-                <div className="flex-1">
-                  <div className="text-sm text-gray-500 mb-1">Temperature</div>
-                  <div className="relative h-24 border-b border-gray-300">
-                    {/* Target temperature line */}
-                    <div 
-                      className="absolute w-full border-t border-dashed border-green-500 z-10"
-                      style={{ bottom: `${((targetTemp) / 1200) * 100}%` }}
-                    ></div>
-                    
-                    {/* Temperature history bars */}
-                    <div className="flex h-full items-end w-full">
-                      {tempHistory.map((temp, i) => (
-                        <div 
-                          key={i}
-                          className="flex-1 bg-orange-500 rounded-t-sm mx-px transition-all duration-300"
-                          style={{ 
-                            height: `${Math.max(0, Math.min(100, ((temp) / 1200) * 100))}%`,
-                          }}
-                        />
-                      ))}
-                    </div>
+            {/* Desktop: Inflow Display and Performance Charts stay here */}
+            <div className="hidden sm:block w-full">
+              {/* Modern Inflow Display - Desktop only */}
+              <div className={`w-full ${gameActive ? 'hidden sm:block' : 'block'} mb-6`}>
+                <h3 className="text-base sm:text-lg font-semibold text-white mb-2 sm:mb-3 flex items-center gap-2">
+                  📥 Inflow Conditions
+                </h3>
+                {/* Desktop: Single row */}
+                <div className="flex flex-row justify-center gap-4">
+                  <div className="bg-white/10 backdrop-blur-lg border border-white/20 p-3 sm:p-4 rounded-xl shadow-lg text-center min-w-[140px]">
+                    <span className="text-xs sm:text-sm text-gray-300">🌡️ Inflow Temp</span>
+                    <div className="text-lg sm:text-xl font-bold text-orange-300">{Math.round(inflowTemp)}°C</div>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-lg border border-white/20 p-3 sm:p-4 rounded-xl shadow-lg text-center min-w-[140px]">
+                    <span className="text-xs sm:text-sm text-gray-300">🌊 Flow Rate</span>
+                    <div className="text-lg sm:text-xl font-bold text-blue-300">{Math.round(inflowRate)} units/h</div>
                   </div>
                 </div>
-                
-                <div className="flex-1">
-                  <div className="text-sm text-gray-500 mb-1">Excess O₂</div>
-                  <div className="relative h-24 border-b border-gray-300">
-                    {/* Optimal O2 zone */}
-                    <div 
-                      className="absolute w-full bg-green-100 border-y border-dashed border-green-500"
-                      style={{ 
-                        bottom: `${(optimalO2Min / 5) * 100}%`,
-                        height: `${((optimalO2Max - optimalO2Min) / 5) * 100}%`
-                      }}
-                    ></div>
-                    
-                    {/* O2 history bars */}
-                    <div className="flex h-full items-end w-full">
-                      {o2History.map((o2, i) => (
-                        <div 
-                          key={i}
-                          className={`flex-1 mx-px rounded-t-sm transition-all duration-300 ${
-                            o2 >= optimalO2Min && o2 <= optimalO2Max 
-                              ? 'bg-green-500' 
-                              : 'bg-blue-500'
-                          }`}
-                          style={{ 
-                            height: `${Math.min(100, (o2 / 5) * 100)}%`,
-                          }}
-                        />
-                      ))}
+              </div>
+              
+              {/* Modern Performance Charts - Desktop only */}
+              <div className="w-full !bg-white/10 backdrop-blur-lg border !border-white/20 rounded-2xl shadow-2xl">
+                <div className="p-3 sm:p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm sm:text-lg font-semibold !text-white flex items-center gap-2">
+                      📊 Performance History
+                    </h3>
+                  </div>
+                  <div className="block">
+                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 h-auto sm:h-32 mt-3">
+                      <div className="flex-1 min-h-[100px] sm:min-h-0 bg-white/5 rounded-xl p-2 sm:p-3 border border-white/10">
+                        <div className="text-xs sm:text-sm text-gray-300 mb-1 flex items-center gap-1">
+                          🌡️ Temperature
+                        </div>
+                        <div className="relative h-16 sm:h-20 border-b border-white/20">
+                          {/* Target temperature line */}
+                          <div 
+                            className="absolute w-full border-t border-dashed border-green-400 z-10"
+                            style={{ bottom: `${((targetTemp) / 1200) * 100}%` }}
+                          ></div>
+                          
+                          {/* Temperature history bars */}
+                          <div className="flex h-full items-end w-full">
+                            {tempHistory.map((temp, i) => (
+                              <div 
+                                key={i}
+                                className="flex-1 bg-gradient-to-t from-orange-500 to-orange-300 rounded-t-sm mx-px transition-all duration-300"
+                                style={{ 
+                                  height: `${Math.max(0, Math.min(100, ((temp) / 1200) * 100))}%`,
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex-1 min-h-[100px] sm:min-h-0 bg-white/5 rounded-xl p-2 sm:p-3 border border-white/10">
+                        <div className="text-xs sm:text-sm text-gray-300 mb-1 flex items-center gap-1">
+                          💨 Excess O₂
+                        </div>
+                        <div className="relative h-16 sm:h-20 border-b border-white/20">
+                          {/* Optimal O2 zone */}
+                          <div 
+                            className="absolute w-full bg-green-400/20 border-y border-dashed border-green-400"
+                            style={{ 
+                              bottom: `${(optimalO2Min / 5) * 100}%`,
+                              height: `${((optimalO2Max - optimalO2Min) / 5) * 100}%`
+                            }}
+                          ></div>
+                          
+                          {/* O2 history bars */}
+                          <div className="flex h-full items-end w-full">
+                            {o2History.map((o2, i) => (
+                              <div 
+                                key={i}
+                                className={`flex-1 mx-px rounded-t-sm transition-all duration-300 ${
+                                  o2 >= optimalO2Min && o2 <= optimalO2Max 
+                                    ? 'bg-gradient-to-t from-green-500 to-green-300' 
+                                    : 'bg-gradient-to-t from-blue-500 to-blue-300'
+                                }`}
+                                style={{ 
+                                  height: `${Math.min(100, (o2 / 5) * 100)}%`,
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1010,274 +1062,340 @@ function App() {
             </div>
           </div>
           
-          <div className="bg-white p-6 rounded-lg shadow-lg lg:w-1/3">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Furnace Controls</h2>
+          {/* Modern Controls Panel */}
+          <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 sm:p-6 shadow-2xl xl:w-1/3">
+            <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4 flex items-center gap-2">
+              🎛️ Furnace Controls
+            </h2>
             
-            {/* Fuel flow control */}
-            <div className="mb-6 relative">
-              <div className="flex justify-between items-center mb-2">
-                <label className="font-medium text-gray-700">Fuel Flow: {fuelFlow.toFixed(1)} units</label>
-                <button
-                  className="text-xs bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
-                  onClick={() => handleFuelFlowChange(10)}
-                >
-                  Reset
-                </button>
-              </div>
-              
-              <input 
-                type="range" 
-                className="w-full h-2 bg-gradient-to-r from-blue-300 to-red-500 rounded-lg appearance-none cursor-pointer"
-                min="1" 
-                max="20" 
-                step="0.5" 
-                value={fuelFlow}
-                onChange={(e) => handleFuelFlowChange(Number(e.target.value))}
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>Low Fuel</span>
-                <span>High Fuel</span>
-              </div>
-            </div>
-            
-            {/* Enhanced Air/Fuel ratio control - updated for more flexibility */}
-            <div className="mb-6 relative">
-              <div className="flex justify-between items-center mb-2">
-                <div className="relative group">
-                  <label className="font-medium text-gray-700 flex items-center">
-                    Air/Fuel Ratio:
-                    <span className="ml-1 text-blue-500 cursor-help text-xs">ⓘ</span>
+            {/* Essential controls - always visible */}
+            <div className="space-y-4 sm:space-y-6">
+              {/* Fuel flow control */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-white/10">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="font-medium text-white text-sm sm:text-base flex items-center gap-1">
+                    ⛽ Fuel: {fuelFlow.toFixed(1)}
                   </label>
-                  <div className="absolute left-0 -top-2 transform -translate-y-full w-64 bg-white p-3 rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                    <p className="text-xs text-gray-700">
-                      The optimal air/fuel ratio for complete combustion is around 14.7 (stoichiometric).
-                      Too little air causes incomplete combustion and sooting. Too much air reduces efficiency.
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Added direct input field */}
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="number" 
-                    className="w-20 px-2 py-1 border border-gray-300 rounded text-right"
-                    min="0.6"
-                    max="25"
-                    step="0.1"
-                    value={airFuelRatio}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      if (value >= 0.6 && value <= 25) {
-                        handleRatioChange(value);
-                      }
-                    }}
-                  />
                   <button
-                    className="text-xs bg-gray-200 px-2 py-1 rounded hover:bg-gray-300"
-                    onClick={() => handleRatioChange(14.7)}
+                    className="text-xs !bg-white/20 backdrop-blur-sm !text-white px-2 py-1 rounded-lg hover:bg-white/30 border border-white/30"
+                    onClick={() => handleFuelFlowChange(10)}
                   >
-                    Reset to 14.7
+                    Reset
                   </button>
-                </div>
-              </div>
-              
-              <div className="relative py-5">
-                <div className="h-3 bg-gradient-to-r from-red-500 via-yellow-500 to-blue-500 rounded-lg"></div>
-                
-                {/* Tick marks for reference */}
-                <div className="absolute w-full flex justify-between top-3 px-1">
-                  {[0.6, 5, 10, 14.7, 20, 25].map((value) => (
-                    <div 
-                      key={value} 
-                      className="h-2 w-0.5 bg-gray-400"
-                      style={{ left: `${((value - 0.6) / 24.4) * 100}%` }}
-                    />
-                  ))}
                 </div>
                 
                 <input 
                   type="range" 
-                  className="absolute top-0 w-full h-12 opacity-0 cursor-pointer"
-                  min="0.6" 
-                  max="25" 
-                  step="0.1" 
-                  value={airFuelRatio}
-                  onChange={(e) => handleRatioChange(Number(e.target.value))}
+                  className="w-full h-3 sm:h-2 bg-gradient-to-r from-blue-400 to-red-500 rounded-lg appearance-none cursor-pointer touch-pan-x"
+                  min="1" 
+                  max="20" 
+                  step="0.5" 
+                  value={fuelFlow}
+                  onChange={(e) => handleFuelFlowChange(Number(e.target.value))}
                 />
-                
-                {/* Larger slider handle */}
-                <div 
-                  className="absolute w-8 h-8 bg-white border-2 border-gray-600 rounded-full shadow-lg -mt-3 transition-all"
-                  style={{
-                    left: `${((airFuelRatio - 0.6) / 24.4) * 100}%`,
-                    transform: 'translateX(-50%)',
-                    top: "-1px"
-                  }}
-                />
+                <div className="flex justify-between text-xs text-gray-300 mt-1">
+                  <span>Low</span>
+                  <span>High</span>
+                </div>
               </div>
               
-              <div className="flex justify-between text-xs text-gray-500 mt-3">
-                <div className="flex flex-col items-center">
-                  <span>Rich</span>
-                  <span>(More Fuel)</span>
-                </div>
-                <div className="text-center">
-                  <span className="text-gray-600">0.6</span>
-                </div>
-                <div className="text-center">
-                  <span className="text-gray-600">5</span>
-                </div>
-                <div className="text-center">
-                  <span className="text-gray-600">10</span>
-                </div>
-                <div className="text-center">
-                  <span className="text-gray-600 font-medium">14.7</span>
-                </div>
-                <div className="text-center">
-                  <span className="text-gray-600">20</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <span>Lean</span>
-                  <span>(More Air)</span>
-                </div>
-              </div>
-
-              <div className="text-sm text-gray-500 mt-2">
-                Current Air Flow: {airFlow.toFixed(1)} units
-              </div>
-            </div>
-            
-            <div className="mb-6">
-              <label className="block font-medium text-gray-700 mb-2">
-                Target Temperature: {targetTemp}°C
-              </label>
-              <input 
-                type="range" 
-                className="w-full h-2 bg-gradient-to-r from-blue-300 via-yellow-400 to-red-500 rounded-lg appearance-none cursor-pointer"
-                min="400" 
-                max="500" 
-                step="5" 
-                value={targetTemp}
-                onChange={(e) => setTargetTemp(Number(e.target.value))}
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>Low (400°C)</span>
-                <span>High (500°C)</span>
-              </div>
-            </div>
-            
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <label className="font-medium text-gray-700 mb-2">
-                  Inflow Feed Control
-                </label>
-                <label className="inline-flex items-center cursor-pointer">
-                  <span className="mr-2 text-sm text-gray-600">Auto</span>
-                  <div className="relative">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer" 
-                      checked={manualInflowControl}
-                      onChange={() => setManualInflowControl(!manualInflowControl)} 
-                    />
-                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-500 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
-                  </div>
-                  <span className="ml-2 text-sm text-gray-600">Manual</span>
-                </label>
-              </div>
-              
-              {manualInflowControl && (
-                <>
-                  <div className="mb-4">
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Inflow Temperature: {Math.round(inflowTemp)}°C
-                    </label>
-                    <input 
-                      type="range" 
-                      className="w-full h-2 bg-gradient-to-r from-blue-300 to-red-300 rounded-lg appearance-none cursor-pointer"
-                      min="15" 
-                      max="40" 
-                      step="1" 
-                      value={inflowTemp}
-                      onChange={(e) => setInflowTemp(Number(e.target.value))}
-                    />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>Low Temp</span>
-                      <span>High Temp</span>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">
-                      Inflow Rate: {Math.round(inflowRate)} units/h
-                    </label>
-                    <input 
-                      type="range" 
-                      className="w-full h-2 bg-gradient-to-r from-blue-300 to-red-300 rounded-lg appearance-none cursor-pointer"
-                      min="50" 
-                      max="200" 
-                      step="5" 
-                      value={inflowRate}
+              {/* Air/Fuel ratio control - with input option */}
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-white/10">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="font-medium text-white text-sm sm:text-base flex items-center gap-1">
+                    💨 Air/Fuel: {airFuelRatio.toFixed(1)}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      className="w-16 sm:w-20 px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white placeholder-gray-400 text-center"
+                      placeholder="14.7"
+                      min="0.6"
+                      max="25"
+                      step="0.1"
                       onChange={(e) => {
-                        setInflowRate(Number(e.target.value))
-                        setLastAction(`Changed inflow rate to ${e.target.value} units/h`)
+                        const value = parseFloat(e.target.value);
+                        if (!isNaN(value) && value >= 0.6 && value <= 25) {
+                          handleRatioChange(value);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const value = parseFloat(e.target.value);
+                          if (!isNaN(value) && value >= 0.6 && value <= 25) {
+                            handleRatioChange(value);
+                            e.target.value = '';
+                          }
+                        }
                       }}
                     />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>Low Flow</span>
-                      <span>High Flow</span>
-                    </div>
                   </div>
-                </>
-              )}
-              
-              {!manualInflowControl && (
-                <div className="text-sm text-gray-600 italic">
-                  System is automatically varying inflow conditions.
-                  Toggle to manual mode to control these parameters yourself.
                 </div>
-              )}
+                
+                <div className="relative py-3 sm:py-5">
+                  <div className="h-3 sm:h-3 bg-gradient-to-r from-red-400 via-yellow-400 to-blue-400 rounded-lg"></div>
+                  
+                  <input 
+                    type="range" 
+                    className="absolute top-0 w-full h-8 sm:h-12 opacity-0 cursor-pointer touch-pan-x"
+                    min="0.6" 
+                    max="25" 
+                    step="0.1" 
+                    value={airFuelRatio}
+                    onChange={(e) => handleRatioChange(Number(e.target.value))}
+                  />
+                  
+                  {/* Modern slider handle */}
+                  <div 
+                    className="absolute w-6 h-6 sm:w-8 sm:h-8 bg-white border-2 border-blue-400 rounded-full shadow-xl transition-all transform hover:scale-110"
+                    style={{
+                      left: `${((airFuelRatio - 0.6) / 24.4) * 100}%`,
+                      transform: 'translateX(-50%)',
+                      top: "-6px"
+                    }}
+                  />
+                </div>
+                
+                <div className="flex justify-between text-xs text-gray-300">
+                  <span>Rich</span>
+                  <span className="hidden sm:inline text-yellow-300">14.7 (Optimal)</span>
+                  <span>Lean</span>
+                </div>
+              </div>
             </div>
             
-            <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-semibold text-gray-700 mb-2">Combustion Status</h3>
-              <p className={`p-2 rounded font-medium ${isOptimal ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+            {/* Advanced controls - collapsible on mobile */}
+            <div className="mt-4 sm:mt-6">
+              <button 
+                className="sm:hidden w-full text-left text-sm font-medium !text-white py-3 !border-b !border-white/20 flex justify-between items-center !bg-white/5 backdrop-blur-sm rounded-xl px-3 mb-2"
+                onClick={() => setShowAdvancedControls(!showAdvancedControls)}
+              >
+                ⚙️ Advanced Controls
+                <span className="text-sm">{showAdvancedControls ? '🔼' : '🔽'}</span>
+              </button>
+              
+              <div className={`${showAdvancedControls ? 'block' : 'hidden'} sm:block space-y-4 sm:space-y-6`}>
+                {/* Target temperature */}
+                <div className="bg-white/5 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-white/10">
+                  <label className="flex font-medium text-white mb-2 text-sm sm:text-base items-center gap-1">
+                    🎯 Target: {targetTemp}°C
+                  </label>
+                  <input 
+                    type="range" 
+                    className="w-full h-2 bg-gradient-to-r from-blue-400 via-yellow-400 to-red-500 rounded-lg appearance-none cursor-pointer"
+                    min="400" 
+                    max="500" 
+                    step="5" 
+                    value={targetTemp}
+                    onChange={(e) => setTargetTemp(Number(e.target.value))}
+                  />
+                  <div className="flex justify-between text-xs text-gray-300 mt-1">
+                    <span>400°C</span>
+                    <span>500°C</span>
+                  </div>
+                </div>
+                
+                {/* Inflow controls */}
+                <div className="bg-white/5 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-white/10">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="font-medium text-white text-sm sm:text-base flex items-center gap-1">
+                      🌊 Inflow Control
+                    </label>
+                    <label className="inline-flex items-center cursor-pointer">
+                      <span className="mr-2 text-xs text-gray-300">Auto</span>
+                      <div className="relative">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer" 
+                          checked={manualInflowControl}
+                          onChange={() => setManualInflowControl(!manualInflowControl)} 
+                        />
+                        <div className="w-8 h-4 sm:w-11 sm:h-6 bg-white/20 rounded-full peer peer-checked:bg-blue-500 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 sm:after:h-5 sm:after:w-5 after:transition-all"></div>
+                      </div>
+                      <span className="ml-2 text-xs text-gray-300">Manual</span>
+                    </label>
+                  </div>
+                  
+                  {manualInflowControl ? (
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <label className="block text-xs sm:text-sm text-gray-300 mb-1">
+                          🌡️ Temp: {Math.round(inflowTemp)}°C
+                        </label>
+                        <input 
+                          type="range" 
+                          className="w-full h-2 bg-gradient-to-r from-blue-400 to-red-400 rounded-lg appearance-none cursor-pointer"
+                          min="100" 
+                          max="200" 
+                          step="1" 
+                          value={inflowTemp}
+                          onChange={(e) => setInflowTemp(Number(e.target.value))}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs sm:text-sm text-gray-300 mb-1">
+                          🌊 Rate: {Math.round(inflowRate)} units/h
+                        </label>
+                        <input 
+                          type="range" 
+                          className="w-full h-2 bg-gradient-to-r from-blue-400 to-red-400 rounded-lg appearance-none cursor-pointer"
+                          min="50" 
+                          max="200" 
+                          step="5" 
+                          value={inflowRate}
+                          onChange={(e) => {
+                            setInflowRate(Number(e.target.value))
+                            setLastAction(`Changed inflow rate to ${e.target.value} units/h`)
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs sm:text-sm text-gray-300 italic">
+                      ✨ System automatically varies inflow conditions
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Combustion status - simplified for mobile */}
+            <div className="mt-4 sm:mt-8 bg-white/5 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-white/10">
+              <h3 className="font-semibold text-white mb-2 text-sm sm:text-base flex items-center gap-1">
+                🔥 Combustion Status
+              </h3>
+              <p className={`p-2 sm:p-3 rounded-xl font-medium text-xs sm:text-sm ${isOptimal ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'}`}>
                 {isOptimal 
                   ? '✅ Optimal combustion efficiency' 
-                  : '⚠️ Adjust air/fuel ratio to improve combustion'}
+                  : '⚠️ Adjust air/fuel ratio for better combustion'}
               </p>
-              {!isOptimal && excessO2 < optimalO2Min && (
-                <p className="text-sm italic text-orange-600 mt-2">
-                  Hint: Increase air ratio for more oxygen
-                </p>
-              )}
-              {!isOptimal && excessO2 > optimalO2Max && (
-                <p className="text-sm italic text-orange-600 mt-2">
-                  Hint: Decrease air ratio to reduce excess oxygen
-                </p>
-              )}
               
-              {/* Simple visual to show O2 relationship with air/fuel ratio */}
-              <div className="mt-4">
-                <div className="text-xs text-gray-500 mb-2">Current Combustion Zone:</div>
-                <div className="flex items-center justify-center gap-3">
-                  <div className="text-right text-xs w-16">
-                    <div>Rich</div>
-                    <div className="text-red-500 font-medium">Incomplete</div>
+              {/* Combustion zone indicator - modern design */}
+              <div className="mt-3 sm:mt-4">
+                <div className="text-xs text-gray-300 mb-2 flex items-center gap-1">
+                  📊 Combustion Zone
+                </div>
+                <div className="flex items-center justify-center gap-2 sm:gap-3">
+                  <div className="text-right text-xs w-12 sm:w-16">
+                    <div className="text-red-300 font-medium">Rich</div>
                   </div>
-                  <div className="w-32 h-3 bg-gradient-to-r from-red-500 via-green-500 to-blue-500 rounded-full relative">
-                    <div className="absolute h-5 w-0.5 bg-black top-1/2 -translate-y-1/2" 
+                  <div className="w-20 sm:w-32 h-3 sm:h-4 bg-gradient-to-r from-red-400 via-green-400 to-blue-400 rounded-full relative shadow-lg">
+                    <div className="absolute h-4 sm:h-6 w-1 bg-white rounded-full shadow-lg top-1/2 -translate-y-1/2 transition-all" 
                         style={{ left: `${((airFuelRatio - 0.6) / 24.4) * 100}%` }} />
                   </div>
-                  <div className="text-xs w-16">
-                    <div>Lean</div>
-                    <div className="text-blue-500 font-medium">Excess O₂</div>
+                  <div className="text-xs w-12 sm:w-16">
+                    <div className="text-blue-300 font-medium">Lean</div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </main>
+        
+        {/* Mobile: Inflow Conditions and Performance Charts below controls */}
+        <div className="sm:hidden space-y-4 mt-4">
+          {/* Mobile Inflow Display */}
+          <div className={`w-full ${gameActive ? 'hidden' : 'block'}`}>
+            <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-2xl">
+              <h3 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
+                📥 Inflow Conditions
+              </h3>
+              {/* Mobile: 1x2 grid (side by side) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white/5 backdrop-blur-sm border border-white/10 p-3 rounded-xl text-center">
+                  <span className="text-xs text-gray-300">🌡️ Inflow Temp</span>
+                  <div className="text-lg font-bold text-orange-300">{Math.round(inflowTemp)}°C</div>
+                </div>
+                <div className="bg-white/5 backdrop-blur-sm border border-white/10 p-3 rounded-xl text-center">
+                  <span className="text-xs text-gray-300">🌊 Flow Rate</span>
+                  <div className="text-lg font-bold text-blue-300">{Math.round(inflowRate)} units/h</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Mobile Performance Charts */}
+          <div className="w-full">
+            <div className="!bg-white/10 backdrop-blur-lg border !border-white/20 rounded-2xl shadow-2xl">
+              <div className="p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-semibold !text-white flex items-center gap-2">
+                    📊 Performance History
+                  </h3>
+                  <button 
+                    className="text-xs text-blue-300 px-3 py-1 rounded-lg !bg-white/20 backdrop-blur-sm border !border-white/30"
+                    onClick={() => setShowPerformanceCharts(!showPerformanceCharts)}
+                  >
+                    {showPerformanceCharts ? '🔼 Hide' : '🔽 Show'}
+                  </button>
+                </div>
+                <div className={`${showPerformanceCharts ? 'block' : 'hidden'}`}>
+                  <div className="flex flex-col gap-3 mt-3">
+                    <div className="flex-1 min-h-[100px] bg-white/5 rounded-xl p-3 border border-white/10">
+                      <div className="text-xs text-gray-300 mb-1 flex items-center gap-1">
+                        🌡️ Temperature
+                      </div>
+                      <div className="relative h-16 border-b border-white/20">
+                        {/* Target temperature line */}
+                        <div 
+                          className="absolute w-full border-t border-dashed border-green-400 z-10"
+                          style={{ bottom: `${((targetTemp) / 1200) * 100}%` }}
+                        ></div>
+                        
+                        {/* Temperature history bars */}
+                        <div className="flex h-full items-end w-full">
+                          {tempHistory.map((temp, i) => (
+                            <div 
+                              key={i}
+                              className="flex-1 bg-gradient-to-t from-orange-500 to-orange-300 rounded-t-sm mx-px transition-all duration-300"
+                              style={{ 
+                                height: `${Math.max(0, Math.min(100, ((temp) / 1200) * 100))}%`,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex-1 min-h-[100px] bg-white/5 rounded-xl p-3 border border-white/10">
+                      <div className="text-xs text-gray-300 mb-1 flex items-center gap-1">
+                        💨 Excess O₂
+                      </div>
+                      <div className="relative h-16 border-b border-white/20">
+                        {/* Optimal O2 zone */}
+                        <div 
+                          className="absolute w-full bg-green-400/20 border-y border-dashed border-green-400"
+                          style={{ 
+                            bottom: `${(optimalO2Min / 5) * 100}%`,
+                            height: `${((optimalO2Max - optimalO2Min) / 5) * 100}%`
+                          }}
+                        ></div>
+                        
+                        {/* O2 history bars */}
+                        <div className="flex h-full items-end w-full">
+                          {o2History.map((o2, i) => (
+                            <div 
+                              key={i}
+                              className={`flex-1 mx-px rounded-t-sm transition-all duration-300 ${
+                                o2 >= optimalO2Min && o2 <= optimalO2Max 
+                                  ? 'bg-gradient-to-t from-green-500 to-green-300' 
+                                  : 'bg-gradient-to-t from-blue-500 to-blue-300'
+                              }`}
+                              style={{ 
+                                height: `${Math.min(100, (o2 / 5) * 100)}%`,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
