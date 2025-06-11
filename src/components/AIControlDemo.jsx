@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as ort from 'onnxruntime-web';
 import { Line } from 'react-chartjs-2';
 import { Chart, registerables } from 'chart.js';
-import { Link } from 'react-router-dom';
 Chart.register(...registerables);
 
 const AIControlDemo = () => {
+  const navigate = useNavigate()
   const [model, setModel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -393,7 +394,7 @@ const AIControlDemo = () => {
           </h3>
           <button
             className="!bg-white/20 backdrop-blur-sm !text-white px-3 sm:px-4 py-2 rounded-xl hover:bg-white/30 text-sm sm:text-base border border-white/30"
-            onClick={() => window.location.href = '/'}
+            onClick={() => navigate('/')}
           >
             ← Back to Game
           </button>

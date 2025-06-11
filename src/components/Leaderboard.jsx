@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
 function Leaderboard() {
+  const navigate = useNavigate()
   const [leaderboard, setLeaderboard] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -57,7 +59,7 @@ function Leaderboard() {
           </h3>
           <button
             className="!bg-white/20 backdrop-blur-sm !text-white px-3 sm:px-4 py-2 rounded-xl hover:bg-white/30 text-sm sm:text-base border border-white/30"
-            onClick={() => window.location.href = '/'}
+            onClick={() => navigate('/')}
           >
             ← Back to Game
           </button>

@@ -1,10 +1,11 @@
 import React from 'react'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import logoFC from './assets/logo_fc.png'
 import furnaceImg from './assets/furnace.png'
 import './App.css'
 import { supabase } from './supabaseClient'
+
 
 // Heat transfer based temperature calculation
 function calculateTemperature(fuelFlow, airFlow, currentTemp, inflowTemp, inflowRate) {
@@ -54,6 +55,7 @@ function calculateTemperature(fuelFlow, airFlow, currentTemp, inflowTemp, inflow
 }
 
 function App() {
+  const navigate = useNavigate()
   const [airFuelRatio, setAirFuelRatio] = useState(14.7) 
   const [excessO2, setExcessO2] = useState(2.0) 
   const [targetTemp, setTargetTemp] = useState(450) 
@@ -647,14 +649,14 @@ function App() {
                     <span className="hidden sm:inline">🚀 Start Challenge</span>
                   </button>
                   <button 
-                    onClick={() => window.location.href = '/leaderboard'}
+                    onClick={() => navigate('/leaderboard')}
                     className="flex-1 sm:flex-none !bg-white/20 backdrop-blur-sm !text-white px-3 sm:px-6 py-2 sm:py-3 rounded-xl hover:bg-white/30 text-sm sm:text-base font-semibold border border-white/30 transform hover:scale-105 transition-all duration-200"
                   >
                     <span className="sm:hidden">🏆 Scores</span>
                     <span className="hidden sm:inline">🏆 Leaderboard</span>
                   </button>
                   <button 
-                    onClick={() => window.location.href = '/ai-demo'}
+                    onClick={() => navigate('/ai-demo')}
                     className="flex-1 sm:flex-none bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-3 sm:px-6 py-2 sm:py-3 rounded-xl hover:from-purple-600 hover:to-indigo-700 text-sm sm:text-base font-semibold shadow-lg transform hover:scale-105 transition-all duration-200"
                   >
                     <span className="sm:hidden">🤖 AI</span>
