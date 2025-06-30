@@ -1,0 +1,14 @@
+{
+  "model_name": "Enhanced LNN v2 (Temporal Cleaned)",
+  "avg_train_r2": 0.9204249275785207,
+  "avg_val_r2": 0.5052856239278464,
+  "avg_train_mse": 0.08583247081988304,
+  "avg_val_mse": 4.097117387971108,
+  "r2_drop": 0.4151393036506743,
+  "mse_increase": 4673.388612531951,
+  "total_params": 16195,
+  "epochs_trained": 108,
+  "best_val_loss": 0.8206439759520451,
+  "data_cleaning": "domain_driven_temporal",
+  "regularization": "high_dropout_layernorm_weight_decay"
+}
