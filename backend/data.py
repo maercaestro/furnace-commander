@@ -120,3 +120,82 @@ for seq in range(num_sequences):
 df = pd.DataFrame(records)
 df.to_csv(data_path, index=False)
 
+def generate_synthetic_matching_real(real_data_path, output_path=None):
+    """
+    Generate synthetic data that matches the characteristics of real plant data
+    
+    Args:
+        real_data_path: Path to real plant data CSV
+        output_path: Path to save synthetic data (optional)
+    
+    Returns:
+        DataFrame with synthetic data matching real data patterns
+    """
+    
+    # Load real data
+    real_data = pd.read_csv(real_data_path)
+    duration = len(real_data)
+    
+    print(f"Generating synthetic data matching: {real_data_path}")
+    print(f"Duration: {duration} points")
+    
+    # Extract variable ranges and trends from real data
+    variables = ['AFR', 'FuelFlow', 'InletTemp', 'InletFlow', 'ExcessO2', 'OutletTemp']
+    synthetic_data = {}
+    
+    for var in variables:
+        if var in real_data.columns:
+            # Extract characteristics
+            start_val = real_data[var].iloc[0]
+            end_val = real_data[var].iloc[-1]
+            min_val = real_data[var].min()
+            max_val = real_data[var].max()
+            
+            # Calculate trend and noise level
+            trend = np.linspace(0, end_val - start_val, duration)
+            noise_std = real_data[var].std() * 0.1  # 10% of real variability
+            
+            # Generate synthetic series
+            noise = np.random.normal(0, noise_std, duration)
+            synthetic_series = start_val + trend + noise
+            
+            # Clip to realistic bounds
+            synthetic_series = np.clip(synthetic_series, min_val * 0.95, max_val * 1.05)
+            synthetic_data[var] = synthetic_series
+    
+    # Add timestamp
+    synthetic_data['timestamp'] = range(duration)
+    
+    # Create DataFrame
+    synthetic_df = pd.DataFrame(synthetic_data)
+    
+    # Save if output path provided
+    if output_path:
+        synthetic_df.to_csv(output_path, index=False)
+        print(f"Synthetic data saved to: {output_path}")
+    
+    return synthetic_df
+
+def compare_data_characteristics(real_data, synthetic_data):
+    """Compare statistical characteristics of real vs synthetic data"""
+    
+    print("\n=== DATA COMPARISON ===")
+    variables = ['AFR', 'FuelFlow', 'InletTemp', 'InletFlow', 'ExcessO2', 'OutletTemp']
+    
+    for var in variables:
+        if var in real_data.columns and var in synthetic_data.columns:
+            real_mean = real_data[var].mean()
+            real_std = real_data[var].std()
+            real_range = real_data[var].max() - real_data[var].min()
+            
+            synth_mean = synthetic_data[var].mean()
+            synth_std = synthetic_data[var].std()
+            synth_range = synthetic_data[var].max() - synthetic_data[var].min()
+            
+            print(f"\n{var}:")
+            print(f"  Real:      Mean={real_mean:.2f}, Std={real_std:.2f}, Range={real_range:.2f}")
+            print(f"  Synthetic: Mean={synth_mean:.2f}, Std={synth_std:.2f}, Range={synth_range:.2f}")
+            print(f"  Match:     Mean={abs(real_mean-synth_mean)/real_mean*100:.1f}%, "
+                  f"Std={abs(real_std-synth_std)/real_std*100:.1f}%, "
+                  f"Range={abs(real_range-synth_range)/real_range*100:.1f}%")
+
