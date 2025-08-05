@@ -4,6 +4,8 @@ from torch.utils.data import Dataset, DataLoader, random_split
 import pandas as pd
 import numpy as np
 import os
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # 1. Set up paths correctly
 script_dir = os.path.dirname(os.path.abspath(__file__))  # Get directory of this script
@@ -293,6 +295,162 @@ torch.onnx.export(
 )
 print(f"ONNX model saved to: {onnx_path}")
 
+# 9. Create training visualization plots
+def create_training_plots(train_losses, val_losses, best_val_loss, epoch, metadata_path):
+    """
+    Create comprehensive training visualization plots
+    """
+    plt.style.use('default')
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig.suptitle('Furnace Commander LNN Training Analysis', fontsize=16, fontweight='bold')
+    
+    epochs = range(1, len(train_losses) + 1)
+    
+    # Plot 1: Training and Validation Loss
+    axes[0, 0].plot(epochs, train_losses, 'b-', label='Training Loss', linewidth=2, alpha=0.8)
+    axes[0, 0].plot(epochs, val_losses, 'r-', label='Validation Loss', linewidth=2, alpha=0.8)
+    axes[0, 0].axhline(y=best_val_loss, color='orange', linestyle='--', 
+                       label=f'Best Val Loss: {best_val_loss:.6f}', alpha=0.7)
+    axes[0, 0].set_xlabel('Epoch')
+    axes[0, 0].set_ylabel('MSE Loss')
+    axes[0, 0].set_title('Training vs Validation Loss')
+    axes[0, 0].legend()
+    axes[0, 0].grid(True, alpha=0.3)
+    axes[0, 0].set_yscale('log')
+    
+    # Plot 2: Loss Difference (Overfitting Detection)
+    loss_diff = np.array(val_losses) - np.array(train_losses)
+    axes[0, 1].plot(epochs, loss_diff, 'g-', linewidth=2, alpha=0.8)
+    axes[0, 1].axhline(y=0, color='black', linestyle='-', alpha=0.5)
+    axes[0, 1].fill_between(epochs, loss_diff, 0, where=(loss_diff > 0), 
+                            color='red', alpha=0.3, label='Overfitting Zone')
+    axes[0, 1].fill_between(epochs, loss_diff, 0, where=(loss_diff <= 0), 
+                            color='green', alpha=0.3, label='Good Generalization')
+    axes[0, 1].set_xlabel('Epoch')
+    axes[0, 1].set_ylabel('Validation Loss - Training Loss')
+    axes[0, 1].set_title('Overfitting Detection')
+    axes[0, 1].legend()
+    axes[0, 1].grid(True, alpha=0.3)
+    
+    # Plot 3: Loss Smoothed (Moving Average)
+    window = min(10, len(train_losses) // 4)
+    if window > 1:
+        train_smooth = pd.Series(train_losses).rolling(window=window, center=True).mean()
+        val_smooth = pd.Series(val_losses).rolling(window=window, center=True).mean()
+        
+        axes[1, 0].plot(epochs, train_losses, 'b-', alpha=0.3, label='Training (Raw)')
+        axes[1, 0].plot(epochs, val_losses, 'r-', alpha=0.3, label='Validation (Raw)')
+        axes[1, 0].plot(epochs, train_smooth, 'b-', linewidth=3, label=f'Training (MA-{window})')
+        axes[1, 0].plot(epochs, val_smooth, 'r-', linewidth=3, label=f'Validation (MA-{window})')
+    else:
+        axes[1, 0].plot(epochs, train_losses, 'b-', linewidth=2, label='Training Loss')
+        axes[1, 0].plot(epochs, val_losses, 'r-', linewidth=2, label='Validation Loss')
+    
+    axes[1, 0].set_xlabel('Epoch')
+    axes[1, 0].set_ylabel('MSE Loss')
+    axes[1, 0].set_title('Smoothed Loss Curves')
+    axes[1, 0].legend()
+    axes[1, 0].grid(True, alpha=0.3)
+    axes[1, 0].set_yscale('log')
+    
+    # Plot 4: Learning Rate Analysis (Loss Improvement Rate)
+    if len(val_losses) > 5:
+        improvement_rate = []
+        for i in range(5, len(val_losses)):
+            recent_avg = np.mean(val_losses[i-5:i])
+            current_val = val_losses[i]
+            rate = (recent_avg - current_val) / recent_avg * 100
+            improvement_rate.append(rate)
+        
+        improvement_epochs = range(6, len(val_losses) + 1)
+        axes[1, 1].plot(improvement_epochs, improvement_rate, 'purple', linewidth=2, alpha=0.8)
+        axes[1, 1].axhline(y=0, color='black', linestyle='-', alpha=0.5)
+        axes[1, 1].fill_between(improvement_epochs, improvement_rate, 0, 
+                                where=np.array(improvement_rate) > 0, 
+                                color='green', alpha=0.3, label='Improving')
+        axes[1, 1].fill_between(improvement_epochs, improvement_rate, 0, 
+                                where=np.array(improvement_rate) <= 0, 
+                                color='red', alpha=0.3, label='Degrading')
+        axes[1, 1].set_xlabel('Epoch')
+        axes[1, 1].set_ylabel('Improvement Rate (%)')
+        axes[1, 1].set_title('Learning Progress (5-epoch window)')
+        axes[1, 1].legend()
+        axes[1, 1].grid(True, alpha=0.3)
+    else:
+        axes[1, 1].text(0.5, 0.5, 'Insufficient data\nfor improvement analysis', 
+                        ha='center', va='center', transform=axes[1, 1].transAxes,
+                        fontsize=12, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray"))
+        axes[1, 1].set_title('Learning Progress Analysis')
+    
+    # Add training statistics as text
+    stats_text = f"""Training Statistics:
+Total Epochs: {epoch}
+Best Validation Loss: {best_val_loss:.6f}
+Final Train Loss: {train_losses[-1]:.6f}
+Final Val Loss: {val_losses[-1]:.6f}
+
+Convergence Analysis:
+• Val Loss Std (last 20): {np.std(val_losses[-20:]):.6f}
+• Overfitting Ratio: {val_losses[-1]/train_losses[-1]:.3f}
+• Best Epoch: {np.argmin(val_losses) + 1}"""
+    
+    fig.text(0.02, 0.02, stats_text, fontsize=10, verticalalignment='bottom',
+             bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue", alpha=0.8))
+    
+    plt.tight_layout()
+    plt.subplots_adjust(bottom=0.15)  # Make room for stats text
+    
+    # Save the plot
+    plot_path = os.path.join(os.path.dirname(metadata_path), "training_analysis.png")
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+    print(f"Training analysis plot saved to: {plot_path}")
+    
+    # Also save individual plots for detailed analysis
+    fig2, ax = plt.subplots(1, 1, figsize=(12, 8))
+    ax.plot(epochs, train_losses, 'b-', label='Training Loss', linewidth=2, alpha=0.8)
+    ax.plot(epochs, val_losses, 'r-', label='Validation Loss', linewidth=2, alpha=0.8)
+    ax.axhline(y=best_val_loss, color='orange', linestyle='--', 
+               label=f'Best Validation Loss: {best_val_loss:.6f}', alpha=0.7)
+    
+    # Mark the best epoch
+    best_epoch_idx = np.argmin(val_losses)
+    ax.scatter(best_epoch_idx + 1, best_val_loss, color='red', s=100, zorder=5,
+               label=f'Best Epoch: {best_epoch_idx + 1}')
+    
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('MSE Loss', fontsize=12)
+    ax.set_title('Furnace Commander LNN - Training Progress', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=11)
+    ax.grid(True, alpha=0.3)
+    ax.set_yscale('log')
+    
+    # Add final performance text
+    final_text = f"""Final Performance:
+• Training Loss: {train_losses[-1]:.6f}
+• Validation Loss: {val_losses[-1]:.6f}
+• Best Validation: {best_val_loss:.6f}
+• Epochs Trained: {epoch}"""
+    
+    ax.text(0.02, 0.98, final_text, transform=ax.transAxes, fontsize=10,
+            verticalalignment='top', bbox=dict(boxstyle="round,pad=0.5", 
+            facecolor="white", alpha=0.8))
+    
+    detailed_plot_path = os.path.join(os.path.dirname(metadata_path), "loss_curves_detailed.png")
+    plt.savefig(detailed_plot_path, dpi=300, bbox_inches='tight')
+    print(f"Detailed loss curves saved to: {detailed_plot_path}")
+    
+    plt.show()
+    return plot_path, detailed_plot_path
+
+# Generate training plots
+print("\n" + "="*60)
+print("GENERATING TRAINING VISUALIZATIONS")
+print("="*60)
+
+plot_path, detailed_plot_path = create_training_plots(
+    train_losses, val_losses, best_val_loss, epoch, metadata_path
+)
+
 print(f"\n{'='*60}")
 print("TRAINING COMPLETE!")
 print(f"{'='*60}")
@@ -301,5 +459,33 @@ print(f"Models saved:")
 print(f"  - TorchScript: lnn_model.ts")
 print(f"  - ONNX: {onnx_path}")
 print(f"  - Metadata: {metadata_path}")
+print(f"Training visualizations:")
+print(f"  - Analysis plots: {plot_path}")
+print(f"  - Detailed curves: {detailed_plot_path}")
 print(f"{'='*60}")
+
+# Final training summary with recommendations
+print(f"\n📊 TRAINING ANALYSIS SUMMARY:")
+print(f"{'='*40}")
+
+if len(val_losses) > 20:
+    stability = np.std(val_losses[-20:])
+    if stability < 0.001:
+        print("✅ Model CONVERGED - Training completed successfully")
+    else:
+        print("⚠️  Model may benefit from additional training")
+
+overfitting_ratio = val_losses[-1] / train_losses[-1]
+if overfitting_ratio > 1.5:
+    print("🔴 OVERFITTING detected - Consider regularization")
+elif overfitting_ratio < 1.1:
+    print("✅ GOOD generalization achieved")
+else:
+    print("🟡 MODERATE generalization - Within acceptable range")
+
+improvement = (val_losses[0] - best_val_loss) / val_losses[0] * 100
+print(f"📈 Overall improvement: {improvement:.2f}%")
+
+print(f"🎯 Ready for deployment in Furnace Commander game!")
+print(f"{'='*40}")
 

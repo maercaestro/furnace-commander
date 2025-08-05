@@ -1,0 +1,17 @@
+Scoring Category,Weight,Performance Level,Criteria,Points Awarded,Formula/Logic
+Temperature Control,40/100,Perfect,|finalTemp - targetTemp| < 10°C,40,"Target: 450°C"
+Temperature Control,40/100,Very Good,10°C ≤ |finalTemp - targetTemp| < 20°C,35,
+Temperature Control,40/100,Good,20°C ≤ |finalTemp - targetTemp| < 25°C,25,
+Temperature Control,40/100,Fair,25°C ≤ |finalTemp - targetTemp| < 30°C,15,
+Temperature Control,40/100,Poor,|finalTemp - targetTemp| ≥ 30°C,5,
+Economic Efficiency,30/100,Excellent,finalCostSavings > $10,30,"Baseline: $8000/hr = $2.22/sec"
+Economic Efficiency,30/100,Very Good,$5 < finalCostSavings ≤ $10,25,"costSavings = optimalCost - actualCost"
+Economic Efficiency,30/100,Good,$2 < finalCostSavings ≤ $5,20,"actualCost = optimalCost × costMultiplier × (fuelFlow/10)"
+Economic Efficiency,30/100,Moderate,$1.5 < finalCostSavings ≤ $2,15,"Cost Multipliers:"
+Economic Efficiency,30/100,Slight,$0 < finalCostSavings ≤ $1.5,10,"• O₂ < 1.5%: 1 + 0.5 × (1.5 - O₂)/1.5"
+Economic Efficiency,30/100,No Savings,finalCostSavings ≤ $0,0,"• O₂ > 2.5%: 1 + 0.2 × (O₂ - 2.5)/2.5; • 1.5% ≤ O₂ ≤ 2.5%: 0.76 (24% savings)"
+Environmental Impact,30/100,Excellent,finalCO < 600 kg,30,"CO Calculation:"
+Environmental Impact,30/100,Very Good,600 ≤ finalCO < 700 kg,25,"• O₂ < 1.5%: min(100, 6 × exp(1.6 × (1.5 - O₂)))"
+Environmental Impact,30/100,Good,700 ≤ finalCO < 800 kg,20,"• 1.5% ≤ O₂ ≤ 2.5%: 0 (zero emissions)"
+Environmental Impact,30/100,Fair,800 ≤ finalCO < 1000 kg,10,"• O₂ > 2.5%: 1 + (O₂ - 2.5)"
+Environmental Impact,30/100,Poor,finalCO ≥ 1000 kg,0,
