@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Furnace Commander: Interactive Combustion Optimization Game and AI Control Demonstration"
+abstract: "An interactive furnace simulation game and AI control demonstration that teaches combustion optimization principles through engaging gameplay and showcases the power of machine learning in industrial control systems. Features a LiquidNN neural network for autonomous furnace control, real-time temperature management, and air/fuel ratio optimization."
+authors:
+  - family-names: "Bin Haji Bidin"
+    given-names: "Abu Huzaifah"
+version: 1.0.0
+date-released: 2025-12-23
+license: MIT
+doi: 10.5281/zenodo.18041063
+repository-code: "https://github.com/maercaestro/furnace-commander"
+keywords:
+  - combustion optimization
+  - machine learning
+  - neural networks
+  - LiquidNN
+  - industrial control
+  - simulation game
+  - educational software
+  - ONNX
+  - PyTorch
+  - React

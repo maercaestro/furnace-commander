@@ -1,0 +1,71 @@
+graph TD
+    A[Start Training Batch] --> B[Phase 1: Train the EBM Critic]
+    B --> C[1. FREEZE LNN Weights]
+    C --> D[2. Positive Phase: Get Real Data]
+    D --> E(S_real)
+    E --> F[EBM]
+    F --> G(Energy_Real)
+
+    C --> H[3. Negative Phase: Generate Fake Data]
+    H --> I(S_noise)
+    I --> J[MCMC Sampler - Langevin Dynamics]
+    J --> K(S_fake)
+    K --> F[EBM]
+    F --> L(Energy_Fake)
+
+    G --> M[4. Calculate EBM Loss]
+    L --> M
+    M --> N[Loss_EBM = E_Real - E_Fake]
+    N --> O[5. Backpropagate & Update EBM Weights]
+
+    O --> P[Phase 2: Train the LNN Generator]
+    P --> Q[6. FREEZE EBM Weights]
+    Q --> R[7. Get Training Data S_t A_t and S_t+1_true]
+    R --> S[LNN - CfC Body]
+    S --> T(S_t+1_pred)
+
+    T --> U[8. Calculate LNN Physics Loss]
+    R --> U
+    U --> V[Loss_Physics = MSE of S_t+1_pred and S_t+1_true]
+
+    T --> W[9. Calculate LNN Energy Loss]
+    W --> X(Frozen EBM)
+    X --> Y(Loss_Energy)
+
+    V --> Z[10. Calculate Total LNN Loss]
+    Y --> Z
+    Z --> AA[Loss_LNN_Total = Loss_Physics + beta * Loss_Energy]
+    AA --> BB[11. Backpropagate & Update LNN Weights]
+
+    BB --> A
+
+    subgraph Phase1[Train the EBM Critic]
+        C
+        D
+        E
+        F
+        G
+        H
+        I
+        J
+        K
+        L
+        M
+        N
+        O
+    end
+
+    subgraph Phase2[Train the LNN Generator]
+        Q
+        R
+        S
+        T
+        U
+        V
+        W
+        X
+        Y
+        Z
+        AA
+        BB
+    end

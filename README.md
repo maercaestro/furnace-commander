@@ -1,5 +1,7 @@
 # Furnace Commander
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18041063.svg)](https://doi.org/10.5281/zenodo.18041063)
+
 An interactive furnace simulation game and AI control demonstration that teaches combustion optimization principles through engaging gameplay and showcases the power of machine learning in industrial control systems.
 
 ![Furnace Commander](/src/assets/logo_fc.png)
